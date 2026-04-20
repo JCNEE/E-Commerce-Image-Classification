@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from dash import dcc, html
 
 
@@ -23,23 +25,52 @@ def meta_item(label: str, value: str) -> html.Div:
 	)
 
 
-def roadmap_card(step: str, title: str, copy: str) -> html.Div:
-	return html.Div(
-		className="roadmap-card",
-		children=[
-			html.Span(step, className="roadmap-step"),
-			html.H3(title),
-			html.P(copy),
-		],
-	)
-
-
 def detail_card(label: str, value: str) -> html.Div:
 	return html.Div(
 		className="detail-card",
 		children=[
 			html.Span(label, className="detail-label"),
 			html.Span(value, className="detail-value"),
+		],
+	)
+
+
+def location_page_href(animal_id: str, location_id: str) -> str:
+	return "/districts?" + urlencode({"animal": animal_id, "location": location_id})
+
+
+def location_card(animal_id: str, location, resolved_location) -> html.Article:
+	district_name = resolved_location.district_name or "District pending"
+	province_name = resolved_location.province_name or "Province pending"
+	highlight_list = None
+	if location.highlights:
+		highlight_list = html.Ul(
+			className="reason-list",
+			children=[html.Li(highlight) for highlight in location.highlights],
+		)
+
+	return html.Article(
+		className="location-card",
+		children=[
+			html.Span(location.ranch_name, className="location-kicker"),
+			html.H3(location.area_name),
+			html.P(location.area_summary, className="panel-copy"),
+			html.Div(
+				className="location-meta-row",
+				children=[
+					html.Span(f"{district_name}, {province_name}", className="location-meta"),
+					html.Span(
+						f"{location.latitude:.4f}, {location.longitude:.4f}",
+						className="location-meta",
+					),
+				],
+			),
+			highlight_list,
+			dcc.Link(
+				"Open district view",
+				href=location_page_href(animal_id, location.location_id),
+				className="animal-link",
+			),
 		],
 	)
 
@@ -56,7 +87,37 @@ def animal_card(animal) -> html.Article:
 					html.H3(animal.name),
 					html.P(animal.scientific_name, className="animal-scientific"),
 					html.P(animal.short_description, className="animal-copy"),
-					dcc.Link("View animal page", href=animal.page_href, className="animal-link"),
+					dcc.Link("View animal map", href=animal.page_href, className="animal-link"),
+				],
+			),
+		],
+	)
+
+
+def create_catalog_page(animals) -> html.Div:
+	return html.Div(
+		className="page",
+		children=[
+			html.Section(
+				className="panel catalog-page-panel",
+				children=[
+					dcc.Link("Back to home", href="/", className="back-link"),
+					html.Div(
+						className="eyebrow-row",
+						children=[
+							html.Span("Animal catalog", className="eyebrow"),
+							html.Span(f"{len(animals)} mapped animals", className="status-pill"),
+						],
+					),
+					html.H1("Browse the full animal catalog"),
+					html.P(
+						"Select an animal to open its map page. Each animal page is now focused on the South Africa map and the stored ranch markers for that species.",
+						className="hero-copy",
+					),
+					html.Div(
+						className="animal-grid",
+						children=[animal_card(animal) for animal in animals],
+					),
 				],
 			),
 		],
@@ -185,15 +246,60 @@ def error_result_card(message: str) -> html.Div:
 	)
 
 
+def range_map_card(prediction) -> html.Div | None:
+	if prediction.range_map_figure is None or not prediction.range_provinces:
+		return None
+
+	return html.Div(
+		className="range-card",
+		children=[
+			html.Div(
+				className="range-header",
+				children=[
+					html.Span("South Africa range", className="range-eyebrow"),
+					html.Div(
+						className="range-chip-row",
+						children=[
+							html.Span(province, className="range-chip")
+							for province in prediction.range_provinces
+						],
+					),
+				],
+			),
+			html.P(prediction.range_summary, className="range-copy"),
+			dcc.Graph(
+				figure=prediction.range_map_figure,
+				className="range-graph",
+				config={"displayModeBar": False, "responsive": True},
+			),
+		],
+	)
+
+
 def result_card(prediction) -> html.Div:
 	confidence_width = f"{prediction.confidence * 100:.0f}%"
-	action_link = None
+	action_links: list[html.Component] = []
+	range_card = range_map_card(prediction)
 	if prediction.action_href and prediction.action_label:
-		action_link = dcc.Link(
+		action_links.append(
+			dcc.Link(
 			prediction.action_label,
 			href=prediction.action_href,
 			className="result-action",
+			)
 		)
+	if prediction.secondary_action_href and prediction.secondary_action_label:
+		action_links.append(
+			dcc.Link(
+				prediction.secondary_action_label,
+				href=prediction.secondary_action_href,
+				className="result-action result-action--secondary",
+			)
+		)
+
+	action_row = None
+	if action_links:
+		action_row = html.Div(className="action-row", children=action_links)
 
 	return html.Div(
 		className="result-shell",
@@ -239,17 +345,18 @@ def result_card(prediction) -> html.Div:
 				className="meta-grid",
 				children=[meta_item(label, value) for label, value in prediction.details],
 			),
+			range_card,
 			html.Ul(
 				className="reason-list",
 				children=[html.Li(reason) for reason in prediction.reasons],
 			),
-			action_link,
+			action_row,
 			html.Div(className="note", children=prediction.note),
 		],
 	)
 
 
-def create_home_page(animals) -> html.Div:
+def create_home_page() -> html.Div:
 	return html.Div(
 		className="page",
 		children=[
@@ -265,7 +372,7 @@ def create_home_page(animals) -> html.Div:
 					),
 					html.H1("See which South African animals live on Bosvelder Ranch"),
 					html.P(
-						"Visitors can browse the ranch catalog online, learn about each species, and upload an image to check whether the animal is part of the current Bosvelder Ranch lineup.",
+						"Upload an animal image to unlock the next step in the experience. After the image is checked, the visitor can open the specific animal map page or move into the full catalog.",
 						className="hero-copy",
 					),
 					html.Div(
@@ -273,94 +380,176 @@ def create_home_page(animals) -> html.Div:
 						children=[
 							metric_card("Species focus", "South African wildlife"),
 							metric_card("Search mode", "Upload an animal image"),
-							metric_card("Next step", "Open the animal profile"),
+							metric_card("Unlocked after upload", "Animal map or full catalog"),
 						],
 					),
 				],
 			),
 			html.Section(
-				className="panel catalog-panel",
+				className="panel upload-panel home-upload-panel",
 				children=[
-					html.H2("Animals currently on the ranch", className="panel-title"),
+					html.H2("Search by animal image", className="panel-title"),
 					html.P(
-						"Each profile below now uses a local animal photo together with a short explanation so visitors can compare real sightings against the ranch catalog.",
+						"Start by uploading an animal photo. Once the system has processed the image, the result area will reveal links to the specific animal map page and the full catalog.",
 						className="panel-copy",
 					),
+					dcc.Upload(
+						id="image-upload",
+						className="upload-area",
+						multiple=False,
+						children=html.Div(
+							children=[
+								html.Span("Drag, drop, or browse", className="upload-kicker"),
+								html.H3("Upload one animal photo", className="upload-title"),
+								html.P(
+									"Accepted formats: JPG, PNG, WEBP. The animal map and full catalog remain hidden until an image has been uploaded.",
+									className="upload-subtitle",
+								),
+							],
+						),
+					),
 					html.Div(
-						className="animal-grid",
-						children=[animal_card(animal) for animal in animals],
+						className="helper-row",
+						children=[
+							html.Span("Upload-first experience", className="helper-chip"),
+							html.Span("Animal map after prediction", className="helper-chip"),
+							html.Span("Full catalog after upload", className="helper-chip"),
+						],
 					),
 				],
 			),
 			html.Div(
-				className="main-grid",
+				className="feedback-grid",
 				children=[
-					html.Section(
-						className="panel upload-panel",
+					html.Div(id="image-preview"),
+					html.Div(id="result-panel"),
+				],
+			),
+		],
+	)
+
+
+def create_animal_page(
+	animal,
+	locations=(),
+	resolved_locations=(),
+	location_map_figure=None,
+) -> html.Div:
+	map_copy = (
+		"This page shows the South Africa range for the selected animal. If ranch coordinates have been added, they are shown as markers on top of the species range."
+	)
+	if locations:
+		map_copy = (
+			"This page shows the South Africa range for the selected animal together with the saved ranch markers where that animal can be found."
+		)
+
+	return html.Div(
+		className="page",
+		children=[
+			html.Section(
+				className="panel animal-map-panel",
+				children=[
+					dcc.Link("Back to full catalog", href="/catalog", className="back-link"),
+					html.Div(
+						className="eyebrow-row",
 						children=[
-							html.H2("Search by animal image", className="panel-title"),
-							html.P(
-								"Upload a photo of an animal to check whether it matches one of the species currently listed for Bosvelder Ranch. Positive results link to the relevant animal page.",
-								className="panel-copy",
-							),
-							dcc.Upload(
-								id="image-upload",
-								className="upload-area",
-								multiple=False,
-								children=html.Div(
-									children=[
-										html.Span("Drag, drop, or browse", className="upload-kicker"),
-										html.H3("Upload one animal photo", className="upload-title"),
-										html.P(
-											"Accepted formats: JPG, PNG, WEBP. The image is checked against the ranch animal catalog.",
-											className="upload-subtitle",
-										),
-									],
-								),
-							),
-							html.Div(
-								className="helper-row",
-								children=[
-									html.Span("South African species only", className="helper-chip"),
-									html.Span("Animal explanations included", className="helper-chip"),
-									html.Span("Match to animal page", className="helper-chip"),
-								],
-							),
-							html.Div(id="image-preview", children=empty_preview()),
+							html.Span("Animal map", className="eyebrow"),
+							html.Span(f"{len(locations)} mapped locations", className="status-pill"),
 						],
 					),
-					html.Section(
-						id="result-panel",
-						className="panel result-panel",
-						children=default_result_card(),
+					html.H1(animal.name),
+					html.P(
+						map_copy,
+						className="hero-copy",
+					),
+					dcc.Graph(
+						id="animal-location-map",
+						figure=location_map_figure,
+						className="range-graph",
+						config={"displayModeBar": False, "responsive": True, "staticPlot": True},
+					),
+					(
+						html.Div(
+							className="note",
+							children="No ranch coordinates have been added for this animal yet, so the page is currently showing the broader species range map. Add two location points to place markers on top of it.",
+						)
+						if not locations
+						else None
 					),
 				],
 			),
+		],
+	)
+
+
+def create_district_page(animal, location, resolved_location, district_map_figure) -> html.Div:
+	district_name = resolved_location.district_name or "District unavailable"
+	province_name = resolved_location.province_name or "Province unavailable"
+	district_map = (
+		dcc.Graph(
+			figure=district_map_figure,
+			className="range-graph",
+			config={"displayModeBar": False, "responsive": True},
+		)
+		if district_map_figure is not None
+		else html.Div(
+			className="note",
+			children="We could not build the district map for this location yet.",
+		)
+	)
+
+	highlight_section = (
+		html.Ul(
+			className="traits-list",
+			children=[html.Li(highlight) for highlight in location.highlights],
+		)
+		if location.highlights
+		else html.P(
+			"Add a short list of district highlights for this ranch location to expand the explanation on this page.",
+			className="panel-copy",
+		)
+	)
+
+	return html.Div(
+		className="page",
+		children=[
 			html.Section(
-				className="panel roadmap",
+				className="panel animal-page-panel",
 				children=[
-					html.H2("How the ranch image search works", className="panel-title"),
-					html.P(
-						"The catalog is built for browsing first and search second: visitors can explore the ranch species, upload an image, and then jump to the matching animal profile if the classifier recognizes it.",
-						className="panel-copy",
-					),
+					dcc.Link("Back to animal page", href=animal.page_href, className="back-link"),
 					html.Div(
-						className="roadmap-grid",
+						className="eyebrow-row",
 						children=[
-							roadmap_card(
-								"1",
-								"Browse the ranch catalog",
-								"Visitors can see which South African animals are currently represented on the ranch and read a short explanation for each one.",
-							),
-							roadmap_card(
-								"2",
-								"Search using an image",
-								"The user uploads an animal photo and the model checks whether the species appears in the Bosvelder Ranch catalog.",
-							),
-							roadmap_card(
-								"3",
-								"Open the animal profile",
-								"If the animal exists on the ranch, the result card links through to a dedicated profile with habitat, viewing, and explanation details.",
+							html.Span("District view", className="eyebrow"),
+							html.Span(district_name, className="status-pill"),
+						],
+					),
+					html.H1(location.area_name),
+					html.P(location.district_story, className="hero-copy"),
+					html.Div(
+						className="district-layout-grid",
+						children=[
+							html.Div(className="district-map-shell", children=[district_map]),
+							html.Div(
+								className="animal-page-content",
+								children=[
+									html.Div(
+										className="store-detail-grid",
+										children=[
+											detail_card("Animal", animal.name),
+											detail_card("Ranch", location.ranch_name),
+											detail_card("District", district_name),
+											detail_card("Province", province_name),
+											detail_card(
+												"Coordinates",
+												f"{location.latitude:.4f}, {location.longitude:.4f}",
+											),
+										],
+									),
+									html.H3("Area highlights", className="detail-heading"),
+									highlight_section,
+									html.Div(className="note", children=location.area_summary),
+								],
 							),
 						],
 					),
@@ -370,7 +559,7 @@ def create_home_page(animals) -> html.Div:
 	)
 
 
-def create_animal_page(animal) -> html.Div:
+def create_district_missing_page() -> html.Div:
 	return html.Div(
 		className="page",
 		children=[
@@ -381,40 +570,14 @@ def create_animal_page(animal) -> html.Div:
 					html.Div(
 						className="eyebrow-row",
 						children=[
-							html.Span("Animal profile", className="eyebrow"),
-							html.Span("Currently on the ranch", className="status-pill"),
+							html.Span("District view", className="eyebrow"),
+							html.Span("Unavailable", className="status-pill"),
 						],
 					),
-					html.H1(animal.name),
-					html.P(animal.short_description, className="hero-copy"),
-					html.Div(
-						className="animal-page-grid",
-						children=[
-							html.Img(src=animal.image_src, alt=animal.name, className="animal-page-image"),
-							html.Div(
-								className="animal-page-content",
-								children=[
-									html.P(animal.description, className="animal-detail-copy"),
-									html.Div(
-										className="store-detail-grid",
-										children=[
-											detail_card("Scientific name", animal.scientific_name),
-											detail_card("Habitat zone", animal.habitat_zone),
-											detail_card("Best viewing", animal.best_viewing),
-										],
-									),
-									html.H3("What to look for", className="detail-heading"),
-									html.Ul(
-										className="traits-list",
-										children=[html.Li(trait) for trait in animal.traits],
-									),
-								],
-							),
-						],
-					),
-					html.Div(
-						className="note",
-						children="This profile is ready for your real ranch data. You can extend it later with live sighting updates, enclosure information, or richer animal metadata.",
+					html.H1("District page not available"),
+					html.P(
+						"We could not load the requested ranch location. Return to the animal page and choose another mapped area.",
+						className="hero-copy",
 					),
 				],
 			),
@@ -429,7 +592,7 @@ def create_animal_missing_page() -> html.Div:
 			html.Section(
 				className="panel animal-page-panel",
 				children=[
-					dcc.Link("Back to ranch catalog", href="/", className="back-link"),
+					dcc.Link("Back to full catalog", href="/catalog", className="back-link"),
 					html.Div(
 						className="eyebrow-row",
 						children=[
@@ -437,9 +600,9 @@ def create_animal_missing_page() -> html.Div:
 							html.Span("Not available", className="status-pill"),
 						],
 					),
-					html.H1("Animal page not available"),
+					html.H1("Animal map not available"),
 					html.P(
-						"We could not load a ranch animal profile for this selection. Return to the catalog and try another animal image.",
+						"We could not load an animal map for this selection. Return to the catalog and try another animal.",
 						className="hero-copy",
 					),
 				],

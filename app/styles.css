@@ -112,6 +112,17 @@ a {
 	box-shadow: var(--shadow-soft);
 }
 
+.feedback-grid,
+.location-grid,
+.district-layout-grid {
+	display: grid;
+	gap: 24px;
+}
+
+.feedback-grid {
+	grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
+}
+
 .hero {
 	display: flex;
 	flex-direction: column;
@@ -144,7 +155,8 @@ a {
 
 .eyebrow,
 .result-mode,
-.animal-category {
+.animal-category,
+.range-eyebrow {
 	color: var(--accent-dark);
 }
 
@@ -159,13 +171,13 @@ a {
 .eyebrow,
 .status-pill,
 .result-mode,
-.roadmap-step,
 .helper-chip,
 .metric-label,
 .meta-label,
 .detail-label,
 .upload-kicker,
-	.animal-category {
+	.animal-category,
+	.range-eyebrow {
 	font-size: 0.74rem;
 	font-weight: 700;
 	letter-spacing: 0.14em;
@@ -184,7 +196,9 @@ a {
 }
 
 .hero h1,
-.animal-page-panel h1 {
+.animal-page-panel h1,
+.catalog-page-panel h1,
+.animal-map-panel h1 {
 	margin: 0;
 	max-width: 15ch;
 	font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
@@ -199,7 +213,6 @@ a {
 .animal-detail-copy,
 .preview-empty p,
 .result-summary,
-.roadmap-card p,
 .note,
 .meta-value,
 .detail-value,
@@ -221,25 +234,23 @@ a {
 .helper-row,
 .meta-grid,
 .store-detail-grid,
-.roadmap-grid,
 .animal-grid,
-.main-grid,
-.animal-page-grid {
+.animal-page-grid,
+.location-grid,
+.district-layout-grid {
 	display: grid;
 	gap: 24px;
 }
 
 .hero-metrics,
 .meta-grid,
-.store-detail-grid,
-.roadmap-grid {
+	.store-detail-grid {
 	gap: 14px;
 }
 
 .hero-metrics,
 .meta-grid,
-.store-detail-grid,
-.roadmap-grid {
+	.store-detail-grid {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -248,12 +259,18 @@ a {
 	gap: 20px;
 }
 
-.main-grid {
-	grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
-}
-
 .animal-page-grid {
 	grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+	align-items: start;
+}
+
+.location-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 20px;
+}
+
+.district-layout-grid {
+	grid-template-columns: minmax(0, 1.02fr) minmax(280px, 0.98fr);
 	align-items: start;
 }
 
@@ -278,7 +295,6 @@ a {
 
 .panel-title,
 .result-heading,
-.roadmap-card h3,
 .detail-heading {
 	margin: 0;
 	font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
@@ -289,8 +305,12 @@ a {
 .upload-panel,
 .result-panel,
 .catalog-panel,
-.roadmap,
+	.catalog-page-panel,
+.location-panel,
 .animal-page-panel,
+	.animal-map-panel,
+	.preview-panel-shell,
+	.result-panel-shell,
 .animal-page-content,
 .result-shell,
 .animal-body {
@@ -303,10 +323,55 @@ a {
 	gap: 22px;
 }
 
+.catalog-page-panel,
+.animal-map-panel,
+.home-upload-panel {
+	gap: 22px;
+}
+
 .animal-body {
 	gap: 10px;
 	padding: 20px;
 	flex: 1;
+}
+
+.location-card,
+.district-map-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 22px;
+	border: 1px solid rgba(90, 58, 32, 0.12);
+	border-radius: var(--radius-lg);
+	background: rgba(255, 251, 247, 0.95);
+	box-shadow: var(--shadow-card);
+}
+
+.location-card h3 {
+	margin: 0;
+	font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+	font-size: 1.38rem;
+	line-height: 1.08;
+}
+
+.location-kicker {
+	font-size: 0.74rem;
+	font-weight: 700;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--accent-dark);
+}
+
+.location-meta-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 14px;
+}
+
+.location-meta {
+	font-size: 0.92rem;
+	line-height: 1.5;
+	color: var(--muted);
 }
 
 .upload-area {
@@ -344,8 +409,7 @@ a {
 .preview-empty,
 .preview-card,
 .animal-card,
-.animal-page-image,
-.roadmap-card {
+.animal-page-image {
 	overflow: hidden;
 	border: 1px solid rgba(90, 58, 32, 0.12);
 	background: rgba(255, 251, 247, 0.95);
@@ -486,6 +550,63 @@ a {
 	background: linear-gradient(90deg, #74675c, #a09388);
 }
 
+.range-card {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 20px;
+	border: 1px solid rgba(90, 58, 32, 0.12);
+	border-radius: var(--radius-lg);
+	background:
+		linear-gradient(180deg, rgba(255, 249, 241, 0.98), rgba(244, 235, 220, 0.92)),
+		rgba(255, 251, 247, 0.95);
+	box-shadow: var(--shadow-card);
+}
+
+.range-header {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.range-copy {
+	margin: 0;
+	font-size: 0.98rem;
+	line-height: 1.65;
+	color: var(--muted);
+}
+
+.range-chip-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.range-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 8px 12px;
+	border: 1px solid rgba(47, 109, 77, 0.16);
+	border-radius: 999px;
+	background: rgba(47, 109, 77, 0.1);
+	color: var(--positive);
+	font-size: 0.84rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.range-graph {
+	overflow: hidden;
+	border: 1px solid rgba(90, 58, 32, 0.1);
+	border-radius: var(--radius-md);
+	background: rgba(255, 251, 247, 0.82);
+}
+
+.range-graph .js-plotly-plot,
+.range-graph .plot-container {
+	width: 100%;
+}
+
 .reason-list,
 .traits-list {
 	display: grid;
@@ -518,6 +639,19 @@ a {
 	letter-spacing: 0.01em;
 	box-shadow: 0 10px 20px rgba(90, 56, 29, 0.16);
 	transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+
+.action-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.result-action--secondary {
+	background: rgba(90, 56, 29, 0.08);
+	color: #5a381d;
+	box-shadow: none;
+	border: 1px solid rgba(90, 56, 29, 0.12);
 }
 
 .result-action:hover,
@@ -585,28 +719,22 @@ a {
 	background: linear-gradient(180deg, #ead8b8, #c89a61);
 }
 
-.roadmap-card {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	padding: 22px;
-	border-radius: var(--radius-lg);
-	background: rgba(255, 252, 248, 0.95);
-}
-
 @media (max-width: 1080px) {
+	.feedback-grid,
 	.hero-metrics,
 	.meta-grid,
 	.store-detail-grid,
-	.roadmap-grid,
 	.animal-grid,
 	.animal-page-grid,
-	.main-grid {
+	.location-grid,
+	.district-layout-grid {
 		grid-template-columns: 1fr;
 	}
 
 	.hero h1,
-	.animal-page-panel h1 {
+	.animal-page-panel h1,
+	.catalog-page-panel h1,
+	.animal-map-panel h1 {
 		max-width: none;
 	}
 }
@@ -622,7 +750,9 @@ a {
 	}
 
 	.hero h1,
-	.animal-page-panel h1 {
+	.animal-page-panel h1,
+	.catalog-page-panel h1,
+	.animal-map-panel h1 {
 		font-size: clamp(2.1rem, 10vw, 3rem);
 	}
 
