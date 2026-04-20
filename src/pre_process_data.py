@@ -4,8 +4,6 @@ pre_process_data.py
 Defines which ImageNet classes count as 'Product' (huntable animals).
 No dataset download required.
 """
-<<<<<<< Updated upstream
-=======
 #===================================================================
 # START OF PRE-PROCESSING OF THE TEST MODEL
 #===================================================================
@@ -157,8 +155,6 @@ with h5py.File(os.path.join(ARTIFACTS_DIR, "wildlife_data.h5"), "w") as f:
 
 print("Saved successfully!")
 
-
-
 #===================================================================
 # END OF PRE-PROCESSING OF THE TEST MODEL
 #===================================================================
@@ -173,7 +169,6 @@ print("Saved successfully!")
 #===================================================================
 
 
->>>>>>> Stashed changes
 
 # List of huntable animals (ImageNet class names)
 PRODUCT_CLASSES = [
