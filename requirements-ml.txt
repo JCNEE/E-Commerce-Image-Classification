@@ -1,0 +1,4 @@
+# Optional heavier runtime dependencies for local or paid ML-backed deployment.
+-r requirements.txt
+keras==3.14.0
+tensorflow==2.21.0
