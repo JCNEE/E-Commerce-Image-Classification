@@ -1,0 +1,14 @@
+{
+  "best_model": "MobileNetV2",
+  "accuracy": 0.9601769911504425,
+  "classes": [
+    "buffalo",
+    "elephant",
+    "rhino",
+    "zebra"
+  ],
+  "num_classes": 4,
+  "training_samples": 1052,
+  "validation_samples": 226,
+  "test_samples": 226
+}

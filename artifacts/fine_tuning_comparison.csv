@@ -1,0 +1,4 @@
+Model,Test Accuracy,Accuracy_Value
+MobileNetV2,96.02%,0.9601769911504425
+ResNet50,46.02%,0.46017699115044247
+EfficientNetB0,25.22%,0.252212389380531
