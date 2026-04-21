@@ -123,17 +123,17 @@ SPECIES_DISPLAY_NAMES = {
 	"buffalo": "Buffalo",
 	"cheetah": "Cheetah",
 	"elephant": "Elephant",
-	"giraffe": "Giraffe",
+	"giraffe": "Cape Giraffe",
 	"hippopotamus": "Hippopotamus",
-	"kudu": "Kudu",
+	"kudu": "Greater Kudu",
 	"leopard": "Leopard",
 	"lion": "Lion",
-	"ostrich": "Ostrich",
+	"ostrich": "Common Ostrich",
 	"rhinoceros": "Rhinoceros",
 	"springbok": "Springbok",
 	"warthog": "Warthog",
-	"wildebeest": "Wildebeest",
-	"zebra": "Zebra",
+	"wildebeest": "Blue Wildebeest",
+	"zebra": "Plains Zebra",
 }
 
 SPECIES_ALIASES = {
@@ -148,18 +148,18 @@ SPECIES_ALIASES = {
 }
 
 ANIMAL_RANGE = {
-	"lion": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "North West"),
+	"lion": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "North West", "Gauteng"),
 	"elephant": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "Eastern Cape"),
-	"rhinoceros": ("Limpopo", "Mpumalanga", "KwaZulu-Natal"),
+	"rhinoceros": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "Eastern Cape"),
 	"zebra": ("Limpopo", "Mpumalanga", "Northern Cape", "Eastern Cape"),
 	"giraffe": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "North West"),
 	"springbok": ("Northern Cape", "Western Cape", "Free State", "Eastern Cape"),
 	"cheetah": ("Limpopo", "North West", "Northern Cape", "Mpumalanga"),
-	"buffalo": ("Limpopo", "Mpumalanga", "KwaZulu-Natal"),
+	"buffalo": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "Eastern Cape"),
 	"warthog": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "North West"),
 	"kudu": ("Limpopo", "Mpumalanga", "Eastern Cape", "Northern Cape"),
 	"leopard": ("Limpopo", "Mpumalanga", "Western Cape", "KwaZulu-Natal"),
-	"hippopotamus": ("Limpopo", "Mpumalanga", "KwaZulu-Natal"),
+	"hippopotamus": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "Eastern Cape"),
 	"wildebeest": ("Limpopo", "Mpumalanga", "North West", "Free State"),
 	"ostrich": ("Western Cape", "Northern Cape", "Eastern Cape", "Free State"),
 }
@@ -475,7 +475,7 @@ def add_location_markers(fig: go.Figure, resolved_locations: tuple[ResolvedAnima
 			showlegend=False,
 		)
 	)
-	fig.update_layout(clickmode="event+select")
+	fig.update_layout(dragmode=False)
 	return fig
 
 
@@ -679,6 +679,7 @@ def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
 				margin={"r": 0, "t": 0, "l": 0, "b": 0},
 				paper_bgcolor="rgba(0, 0, 0, 0)",
 				plot_bgcolor="rgba(0, 0, 0, 0)",
+				dragmode=False,
 			)
 			return fig
 
@@ -713,5 +714,6 @@ def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
 		margin={"r": 0, "t": 0, "l": 0, "b": 0},
 		paper_bgcolor="rgba(0, 0, 0, 0)",
 		plot_bgcolor="rgba(0, 0, 0, 0)",
+		dragmode=False,
 	)
 	return fig

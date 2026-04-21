@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs
+from uuid import uuid4
 
-from dash import Dash, Input, Output, State, dcc, html
+from dash import Dash, Input, Output, State, dcc, html, no_update
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,12 +22,17 @@ from app.layout import (  # noqa: E402
 	create_catalog_page,
 	create_district_missing_page,
 	create_district_page,
+	build_upload_component,
 	create_home_page,
 	create_layout,
-	error_preview,
 	error_result_card,
-	image_preview,
 	result_card,
+)
+from app.animal_catalog import (  # noqa: E402
+	RANCH_ANIMALS,
+	RanchAnimal,
+	get_ranch_animal,
+	infer_catalog_animal,
 )
 from app.animal_location_data import get_animal_location, get_animal_locations  # noqa: E402
 from app.animal_range_map import (  # noqa: E402
@@ -38,158 +43,18 @@ from app.animal_range_map import (  # noqa: E402
 	resolve_animal_location,
 	resolve_animal_locations,
 )
+from src.model_runtime import (  # noqa: E402
+	ModelRuntimeUnavailable,
+	infer_outside_species_name,
+	predict_with_runtime,
+)
 
-USE_TRAINED_MODEL = os.getenv("USE_TRAINED_MODEL", "false").lower() == "true"
+USE_TRAINED_MODEL = os.getenv("USE_TRAINED_MODEL", "true").lower() == "true"
 SUPPORTED_IMAGE_TYPES = {
 	"image/jpeg": "JPG",
 	"image/png": "PNG",
 	"image/webp": "WEBP",
 }
-RANCH_ANIMAL_HINTS = {
-	"kudu": "greater-kudu",
-	"springbok": "springbok",
-	"zebra": "plains-zebra",
-	"giraffe": "cape-giraffe",
-	"wildebeest": "blue-wildebeest",
-	"gnu": "blue-wildebeest",
-	"ostrich": "common-ostrich",
-}
-OUTSIDE_RANCH_SPECIES = {
-	"lion": "lion",
-	"leopard": "leopard",
-	"cheetah": "cheetah",
-	"rhino": "rhinoceros",
-	"rhinoceros": "rhinoceros",
-	"hippo": "hippopotamus",
-	"hippopotamus": "hippopotamus",
-	"elephant": "elephant",
-	"buffalo": "buffalo",
-	"warthog": "warthog",
-	"crocodile": "crocodile",
-	"penguin": "penguin",
-	"whale": "whale",
-	"shark": "shark",
-}
-OUTSIDE_RANCH_HINTS = tuple(OUTSIDE_RANCH_SPECIES)
-
-
-@dataclass(frozen=True)
-class RanchAnimal:
-	animal_id: str
-	name: str
-	scientific_name: str
-	category: str
-	short_description: str
-	description: str
-	habitat_zone: str
-	best_viewing: str
-	image_src: str
-	traits: tuple[str, ...]
-
-	@property
-	def page_href(self) -> str:
-		return "/animals?" + urlencode({"animal": self.animal_id})
-
-
-RANCH_ANIMALS = (
-	RanchAnimal(
-		"greater-kudu",
-		"Greater Kudu",
-		"Tragelaphus strepsiceros",
-		"Antelope",
-		"A tall spiral-horned browser that moves quietly through thornveld and acacia cover.",
-		"The greater kudu is one of the ranch's signature antelope species. Bulls carry long spiral horns while cows and young animals move in looser groups through thicker bush. Visitors usually spot them near the shaded thornveld edge where they browse on leaves and pods rather than open grass.",
-		"Acacia ridge and mixed bushveld line",
-		"Early morning near shaded browsing paths",
-		"/assets/assets/greater-kudu.jpg",
-		(
-			"Look for the white body stripes and the dark ridge running along the spine.",
-			"Mature bulls carry dramatic spiral horns that stand out against the skyline.",
-			"They tend to pause in cover before stepping into open clearings.",
-		),
-	),
-	RanchAnimal(
-		"springbok",
-		"Springbok",
-		"Antidorcas marsupialis",
-		"Antelope",
-		"A light, fast antelope known for its high pronking leap across the open veld.",
-		"Springbok are among the most recognisable South African antelope. On the ranch they are most often seen out in the open, grazing in loose groups and suddenly springing into the air when startled. Their white face markings and chestnut side band make them easy to identify in bright daylight.",
-		"Open grass flats and short-grazing camps",
-		"Late afternoon across the sunlit plains",
-		"/assets/assets/springbok.jpg",
-		(
-			"Watch for the chestnut stripe along each side of the body.",
-			"Pronking jumps are a common sign that the herd is alert.",
-			"They usually prefer the more open grazing areas of the ranch.",
-		),
-	),
-	RanchAnimal(
-		"plains-zebra",
-		"Plains Zebra",
-		"Equus quagga",
-		"Grazers",
-		"A bold black-and-cream grazer that moves in family groups across the plains.",
-		"Plains zebra bring strong movement and contrast to the ranch landscape. Their striping is unique to each animal, but the herd behavior is just as helpful when identifying them: they graze together, watch in different directions, and often share open ground with antelope species.",
-		"Central grazing paddocks and waterline paths",
-		"Mid-morning around open water points",
-		"/assets/assets/plains-zebra.jpg",
-		(
-			"Each zebra has its own stripe pattern even though the herd appears uniform from a distance.",
-			"They often stand in loose lines while grazing or resting.",
-			"Their rounded ears and upright mane help distinguish them from antelope at range.",
-		),
-	),
-	RanchAnimal(
-		"cape-giraffe",
-		"Cape Giraffe",
-		"Giraffa giraffa giraffa",
-		"Browsers",
-		"A towering browser that strips leaves from the upper acacia canopy.",
-		"Cape giraffe are among the easiest animals to spot on the ranch because they rise above the thorn trees. They browse quietly for long periods and often move with measured steps between tree lines. Their pale patches and long silhouette make them one of the most popular animals in the catalog.",
-		"Tall acacia belt on the northern loop",
-		"Early afternoon where tree canopies stay green",
-		"/assets/assets/cape-giraffe.jpg",
-		(
-			"Notice the patch pattern and the dark tail tuft moving while they feed.",
-			"They often browse at heights other animals cannot reach.",
-			"Groups may include calves staying close to the adults on the edges of the trees.",
-		),
-	),
-	RanchAnimal(
-		"blue-wildebeest",
-		"Blue Wildebeest",
-		"Connochaetes taurinus",
-		"Plains herd",
-		"A heavy-shouldered herd animal with a dark mane and curved horns.",
-		"Blue wildebeest add weight and motion to the ranch's open grassland scenes. Their broad front build and darker face stand out clearly when they gather in small groups. They often keep moving between open grazing lines and water access points throughout the day.",
-		"Southern plains and waterline route",
-		"Morning and late afternoon near grazing lines",
-		"/assets/assets/blue-wildebeest.jpg",
-		(
-			"Look for the beard, dark mane, and sloping back line.",
-			"They often travel in short bursts before stopping together.",
-			"The horn shape is broader and heavier than that of antelope species.",
-		),
-	),
-	RanchAnimal(
-		"common-ostrich",
-		"Common Ostrich",
-		"Struthio camelus",
-		"Birdlife",
-		"The world's largest bird, built for speed across dry South African ground.",
-		"Ostriches bring a very different silhouette to the ranch catalog. Their height, bare legs, and long neck make them easy to identify even from a distance. They are usually seen moving across open areas with quick, direct strides and pausing to scan the surroundings.",
-		"Dry grass camps and open fence lines",
-		"Warm daylight hours on open ground",
-		"/assets/assets/common-ostrich.jpg",
-		(
-			"The long neck and powerful legs are visible even from far away.",
-			"They tend to prefer open areas with a clear line of sight.",
-			"Fast running is one of the clearest behavioral cues when they are disturbed.",
-		),
-	),
-)
-RANCH_ANIMALS_BY_ID = {animal.animal_id: animal for animal in RANCH_ANIMALS}
 
 
 @dataclass(frozen=True)
@@ -215,18 +80,12 @@ class PredictionResult:
 
 app = Dash(
 	__name__,
-	title="Bosvelder Ranch Catalog",
+	title="Bosvelder Sale Catalog",
 	assets_folder=str(ASSETS_PATH),
 	suppress_callback_exceptions=True,
 	update_title=None,
 )
 server = app.server
-
-
-def get_ranch_animal(animal_id: str | None) -> RanchAnimal | None:
-	if not animal_id:
-		return None
-	return RANCH_ANIMALS_BY_ID.get(animal_id)
 
 
 def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, object | None]:
@@ -236,29 +95,6 @@ def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, obje
 	if location_map_figure is None:
 		location_map_figure = build_sa_range_map(animal.name)
 	return locations, resolved_locations, location_map_figure
-
-
-def select_ranch_animal(file_name: str, image_bytes: bytes) -> RanchAnimal:
-	lowered_name = file_name.lower()
-	for keyword, animal_id in RANCH_ANIMAL_HINTS.items():
-		if keyword in lowered_name:
-			return RANCH_ANIMALS_BY_ID[animal_id]
-
-	index = int(hashlib.sha256(image_bytes).hexdigest()[8:10], 16) % len(RANCH_ANIMALS)
-	return RANCH_ANIMALS[index]
-
-
-def infer_species_name(file_name: str) -> str | None:
-	lowered_name = file_name.lower()
-	for keyword, animal_id in RANCH_ANIMAL_HINTS.items():
-		if keyword in lowered_name:
-			return RANCH_ANIMALS_BY_ID[animal_id].name
-
-	for keyword, species_name in OUTSIDE_RANCH_SPECIES.items():
-		if keyword in lowered_name:
-			return species_name
-
-	return None
 
 
 def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[str, ...], object | None]:
@@ -303,102 +139,75 @@ def decode_upload(contents: str) -> tuple[str, bytes]:
 	return mime_type, image_bytes
 
 
-def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult:
-	raise NotImplementedError("Connect your trained ranch animal classifier here.")
-
-
-def run_demo_prediction(
-	file_name: str,
-	mime_type: str,
-	image_bytes: bytes,
+def build_sold_prediction(
+	animal: RanchAnimal,
+	confidence: float,
 	mode_label: str,
+	reasons: list[str],
+	note: str,
 ) -> PredictionResult:
-	lowered_name = file_name.lower()
-	detected_species = infer_species_name(file_name)
-	digest_score = int(hashlib.sha256(image_bytes).hexdigest()[:8], 16) / 0xFFFFFFFF
-	positive_hits = sum(keyword in lowered_name for keyword in RANCH_ANIMAL_HINTS)
-	negative_hits = sum(keyword in lowered_name for keyword in OUTSIDE_RANCH_HINTS)
-	adjusted_score = digest_score + (positive_hits * 0.22) - (negative_hits * 0.25)
-	adjusted_score = max(0.03, min(0.97, adjusted_score))
-	match_found = adjusted_score >= 0.5
-	confidence = 0.6 + min(abs(adjusted_score - 0.5) * 0.65, 0.34)
-
-	reasons: list[str] = []
-	if positive_hits:
-		reasons.append("The upload name contains animal keywords that match the Bosvelder Ranch species list.")
-	if negative_hits:
-		reasons.append("The upload name contains species hints that currently sit outside the Bosvelder Ranch catalog.")
-	reasons.append(
-		"This build still uses deterministic demo matching, so identical uploads return the same placeholder result until the trained model is connected."
+	range_summary, range_provinces, range_map_figure = get_range_map_payload(animal.name)
+	return PredictionResult(
+		title=animal.name,
+		badge_text="Sold",
+		confidence=confidence,
+		badge_class="result-badge--positive",
+		fill_class="confidence-fill--positive",
+		summary=(
+			"This upload matches one of the ten animals currently listed for sale. "
+			"You can open the animal page or browse the full sale catalog."
+		),
+		reasons=tuple(reasons),
+		mode_label=mode_label,
+		details=(
+			("Species", animal.scientific_name),
+			("Habitat zone", animal.habitat_zone),
+			("Catalog status", "Sold"),
+		),
+		note=note,
+		range_summary=range_summary,
+		range_provinces=range_provinces,
+		range_map_figure=range_map_figure,
+		action_href=animal.page_href,
+		action_label="Open animal page",
+		secondary_action_href="/catalog",
+		secondary_action_label="View full catalog",
 	)
-	reasons.append(
-		f"Detected file type: {SUPPORTED_IMAGE_TYPES[mime_type]}. Swap this rule set for your real classifier when the model artifact is ready."
-	)
 
-	if match_found:
-		animal = select_ranch_animal(file_name, image_bytes)
-		range_summary, range_provinces, range_map_figure = get_range_map_payload(animal.name)
-		reasons.append(f"Matched ranch animal route: {animal.name}.")
-		return PredictionResult(
-			title=animal.name,
-			badge_text="Exists on the ranch",
-			confidence=confidence,
-			badge_class="result-badge--positive",
-			fill_class="confidence-fill--positive",
-			summary=(
-				"This upload matches one of the South African animals currently listed on Bosvelder Ranch. You can now open the animal map page or browse the full catalog."
-			),
-			reasons=tuple(reasons),
-			mode_label=mode_label,
-			details=(
-				("Species", animal.scientific_name),
-				("Habitat zone", animal.habitat_zone),
-				("Best viewing", animal.best_viewing),
-			),
-			note="This is still a demo result. When the real model is connected, the page flow can stay the same while only the recognition step changes.",
-			range_summary=range_summary,
-			range_provinces=range_provinces,
-			range_map_figure=range_map_figure,
-			action_href=animal.page_href,
-			action_label="Open animal map",
-			secondary_action_href="/catalog",
-			secondary_action_label="View full catalog",
-		)
 
+def build_not_sold_prediction(
+	detected_species: str | None,
+	confidence: float,
+	mode_label: str,
+	reasons: list[str],
+	note: str,
+) -> PredictionResult:
 	range_summary = None
 	range_provinces: tuple[str, ...] = ()
 	range_map_figure = None
-	title = "Animal not found on this ranch"
+	title = "Not sold"
 	summary = (
-		"We could not confidently match this upload to the current Bosvelder Ranch animal list. Try another image or upload a clearer photo of the species."
+		"This upload does not match one of the ten animals currently listed for sale. "
+		"Anything outside that configured list is routed to the not sold category."
 	)
 	details = (
-		("Catalog scope", "Bosvelder Ranch species list"),
-		("Status", "No confident match"),
-		("Next step", "Try another image"),
+		("Detected species", detected_species or "Unresolved"),
+		("Catalog status", "Not sold"),
+		("Next step", "Upload another image"),
 	)
 
 	if detected_species:
-		range_context = get_species_range_context(detected_species)
-		if range_context is not None:
-			range_summary, range_provinces, range_map_figure = get_range_map_payload(detected_species)
-			title = f"{range_context.display_name} is not part of the ranch catalog"
+		title = f"{detected_species} is not sold"
+		range_summary, range_provinces, range_map_figure = get_range_map_payload(detected_species)
+		if range_summary is not None:
 			summary = (
-				f"This upload appears closest to {range_context.display_name} based on the current demo hints, "
-				"but that species is not listed on Bosvelder Ranch. The province map below shows where it is commonly associated in South Africa."
-			)
-			details = (
-				("Detected species", range_context.display_name),
-				("Catalog status", "Not on Bosvelder Ranch"),
-				("Next step", "Open the full catalog"),
-			)
-			reasons.append(
-				f"Detected species cue: {range_context.display_name}. The current catalog treats it as outside the Bosvelder Ranch list."
+				f"This upload looks closest to {detected_species}, but that species is outside the current sold list. "
+				"The province map below shows where it is commonly associated in South Africa."
 			)
 
 	return PredictionResult(
 		title=title,
-		badge_text="Not on the ranch",
+		badge_text="Not sold",
 		confidence=confidence,
 		badge_class="result-badge--negative",
 		fill_class="confidence-fill--negative",
@@ -406,7 +215,7 @@ def run_demo_prediction(
 		reasons=tuple(reasons),
 		mode_label=mode_label,
 		details=details,
-		note="This negative result is also placeholder logic until the trained classifier is wired in.",
+		note=note,
 		range_summary=range_summary,
 		range_provinces=range_provinces,
 		range_map_figure=range_map_figure,
@@ -415,23 +224,91 @@ def run_demo_prediction(
 	)
 
 
+def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult:
+	runtime_prediction = predict_with_runtime(image_bytes=image_bytes, file_name=file_name)
+	reasons = list(runtime_prediction.reasons)
+
+	if runtime_prediction.animal_id:
+		animal = get_ranch_animal(runtime_prediction.animal_id)
+		if animal is not None:
+			reasons.append(f"Resolved sold listing: {animal.name}.")
+			return build_sold_prediction(
+				animal=animal,
+				confidence=runtime_prediction.confidence,
+				mode_label=runtime_prediction.mode_label,
+				reasons=reasons,
+				note=runtime_prediction.note,
+			)
+
+	reasons.append("The runtime output did not resolve to a configured catalog entry, so the upload was routed to not sold.")
+	return build_not_sold_prediction(
+		detected_species=runtime_prediction.detected_species,
+		confidence=runtime_prediction.confidence,
+		mode_label=runtime_prediction.mode_label,
+		reasons=reasons,
+		note=runtime_prediction.note,
+	)
+
+
+def run_demo_prediction(
+	file_name: str,
+	mime_type: str,
+	mode_label: str,
+	runtime_note: str | None = None,
+) -> PredictionResult:
+	matched_animal = infer_catalog_animal(file_name)
+	detected_species = infer_outside_species_name(file_name)
+	reasons = [
+		f"Detected file type: {SUPPORTED_IMAGE_TYPES[mime_type]}.",
+		"The temporary site is using deterministic filename matching because the live model runtime is disabled or unavailable.",
+	]
+	if runtime_note:
+		reasons.append(f"Trained runtime unavailable: {runtime_note}")
+
+	if matched_animal is not None:
+		reasons.append("The upload name matched one of the exact sold-animal aliases configured for this project.")
+		return build_sold_prediction(
+			animal=matched_animal,
+			confidence=0.86,
+			mode_label=mode_label,
+			reasons=reasons,
+			note=(
+				"This is deterministic fallback logic for the temporary site. Enable the runtime backend if you want the upload itself, rather than the file name, to drive the result."
+			),
+		)
+
+	if detected_species:
+		reasons.append(f"Detected not-sold species cue: {detected_species}.")
+	else:
+		reasons.append("No sold-animal alias was found in the upload name, so demo mode routes the image to not sold.")
+
+	return build_not_sold_prediction(
+		detected_species=detected_species,
+		confidence=0.62 if detected_species else 0.55,
+		mode_label=mode_label,
+		reasons=reasons,
+		note=(
+			"This fallback is intentionally strict: only the configured kudu, springbok, giraffe, buffalo, rhino, zebra, ostrich, elephant, lion, and hippopotamus aliases resolve to sold."
+		),
+	)
+
+
 def classify_upload(file_name: str, mime_type: str, image_bytes: bytes) -> PredictionResult:
 	if USE_TRAINED_MODEL:
 		try:
 			return run_model_prediction(image_bytes=image_bytes, file_name=file_name)
-		except NotImplementedError:
+		except ModelRuntimeUnavailable as exc:
 			return run_demo_prediction(
 				file_name=file_name,
 				mime_type=mime_type,
-				image_bytes=image_bytes,
 				mode_label="Demo fallback",
+				runtime_note=str(exc),
 			)
 
 	return run_demo_prediction(
 		file_name=file_name,
 		mime_type=mime_type,
-		image_bytes=image_bytes,
-		mode_label="Demo ranch search",
+		mode_label="Deterministic temp match",
 	)
 
 
@@ -492,16 +369,17 @@ def render_page(pathname: str | None, search: str | None):
 
 	return create_home_page()
 @app.callback(
-	Output("image-preview", "children"),
+	Output("upload-shell", "children"),
 	Output("result-panel", "children"),
 	Input("image-upload", "contents"),
 	State("image-upload", "filename"),
 )
 def update_prediction(contents: str | None, file_name: str | None):
 	if not contents:
-		return None, None
+		return no_update, None
 
 	safe_name = normalise_file_name(file_name)
+	refreshed_upload = build_upload_component(uuid4().hex)
 
 	try:
 		mime_type, image_bytes = decode_upload(contents)
@@ -509,16 +387,12 @@ def update_prediction(contents: str | None, file_name: str | None):
 	except ValueError as exc:
 		message = str(exc)
 		return (
-			html.Section(className="panel preview-panel-shell", children=error_preview(message)),
+			refreshed_upload,
 			html.Section(className="panel result-panel-shell", children=error_result_card(message)),
 		)
 
-	size_kb = len(image_bytes) / 1024
 	return (
-		html.Section(
-			className="panel preview-panel-shell",
-			children=image_preview(contents, safe_name, size_kb),
-		),
+		refreshed_upload,
 		html.Section(
 			className="panel result-panel-shell",
 			children=result_card(prediction),

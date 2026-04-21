@@ -5,6 +5,39 @@ from urllib.parse import urlencode
 from dash import dcc, html
 
 
+STATIC_MAP_CONFIG = {
+	"displayModeBar": False,
+	"responsive": True,
+	"staticPlot": True,
+	"scrollZoom": False,
+	"doubleClick": False,
+	"editable": False,
+}
+
+
+def build_upload_component(upload_key: str | None = None) -> html.Div:
+	return html.Div(
+		id=f"upload-instance-{upload_key or 'initial'}",
+		children=[
+			dcc.Upload(
+				id="image-upload",
+				className="upload-area",
+				multiple=False,
+				children=html.Div(
+					children=[
+						html.Span("Drag, drop, or browse", className="upload-kicker"),
+						html.H3("Upload one animal photo", className="upload-title"),
+						html.P(
+							"Accepted formats: JPG, PNG, WEBP. The animal map and full catalog remain hidden until an image has been uploaded.",
+							className="upload-subtitle",
+						),
+					],
+				),
+			),
+		],
+	)
+
+
 def metric_card(label: str, value: str) -> html.Div:
 	return html.Div(
 		className="metric-card",
@@ -54,7 +87,6 @@ def location_card(animal_id: str, location, resolved_location) -> html.Article:
 		children=[
 			html.Span(location.ranch_name, className="location-kicker"),
 			html.H3(location.area_name),
-			html.P(location.area_summary, className="panel-copy"),
 			html.Div(
 				className="location-meta-row",
 				children=[
@@ -270,7 +302,7 @@ def range_map_card(prediction) -> html.Div | None:
 			dcc.Graph(
 				figure=prediction.range_map_figure,
 				className="range-graph",
-				config={"displayModeBar": False, "responsive": True},
+				config=STATIC_MAP_CONFIG,
 			),
 		],
 	)
@@ -393,21 +425,7 @@ def create_home_page() -> html.Div:
 						"Start by uploading an animal photo. Once the system has processed the image, the result area will reveal links to the specific animal map page and the full catalog.",
 						className="panel-copy",
 					),
-					dcc.Upload(
-						id="image-upload",
-						className="upload-area",
-						multiple=False,
-						children=html.Div(
-							children=[
-								html.Span("Drag, drop, or browse", className="upload-kicker"),
-								html.H3("Upload one animal photo", className="upload-title"),
-								html.P(
-									"Accepted formats: JPG, PNG, WEBP. The animal map and full catalog remain hidden until an image has been uploaded.",
-									className="upload-subtitle",
-								),
-							],
-						),
-					),
+					html.Div(id="upload-shell", children=build_upload_component()),
 					html.Div(
 						className="helper-row",
 						children=[
@@ -418,13 +436,7 @@ def create_home_page() -> html.Div:
 					),
 				],
 			),
-			html.Div(
-				className="feedback-grid",
-				children=[
-					html.Div(id="image-preview"),
-					html.Div(id="result-panel"),
-				],
-			),
+			html.Div(id="result-panel"),
 		],
 	)
 
@@ -436,11 +448,38 @@ def create_animal_page(
 	location_map_figure=None,
 ) -> html.Div:
 	map_copy = (
-		"This page shows the South Africa range for the selected animal. If ranch coordinates have been added, they are shown as markers on top of the species range."
+		"This page shows the South Africa range for the selected animal. Once hunt locations are added, the page can show static markers and district-view cards without relying on map clicks."
 	)
 	if locations:
 		map_copy = (
-			"This page shows the South Africa range for the selected animal together with the saved ranch markers where that animal can be found."
+			"This page shows the South Africa range for the selected animal together with the saved hunting locations. "
+			"The map markers are visual only; use the location cards below to open the district view for a specific site."
+		)
+
+	location_section = None
+	if locations and resolved_locations:
+		location_section = html.Div(
+			className="animal-page-content",
+			children=[
+				html.Div(
+					className="eyebrow-row",
+					children=[
+						html.Span("Hunt locations", className="eyebrow"),
+						html.Span(f"{len(locations)} district views", className="status-pill"),
+					],
+				),
+				html.P(
+					"The South Africa map stays static for lighter hosting on Render. Open a district page from one of the hunt-location cards below.",
+					className="panel-copy",
+				),
+				html.Div(
+					className="location-grid",
+					children=[
+						location_card(animal.animal_id, location, resolved_location)
+						for location, resolved_location in zip(locations, resolved_locations)
+					],
+				),
+			],
 		)
 
 	return html.Div(
@@ -466,12 +505,13 @@ def create_animal_page(
 						id="animal-location-map",
 						figure=location_map_figure,
 						className="range-graph",
-						config={"displayModeBar": False, "responsive": True, "staticPlot": True},
+						config=STATIC_MAP_CONFIG,
 					),
+					location_section,
 					(
 						html.Div(
 							className="note",
-							children="No ranch coordinates have been added for this animal yet, so the page is currently showing the broader species range map. Add two location points to place markers on top of it.",
+							children="No hunting locations have been added for this animal yet, so the page is currently showing only the broader species range map.",
 						)
 						if not locations
 						else None
@@ -489,7 +529,7 @@ def create_district_page(animal, location, resolved_location, district_map_figur
 		dcc.Graph(
 			figure=district_map_figure,
 			className="range-graph",
-			config={"displayModeBar": False, "responsive": True},
+			config=STATIC_MAP_CONFIG,
 		)
 		if district_map_figure is not None
 		else html.Div(
@@ -537,7 +577,7 @@ def create_district_page(animal, location, resolved_location, district_map_figur
 										className="store-detail-grid",
 										children=[
 											detail_card("Animal", animal.name),
-											detail_card("Ranch", location.ranch_name),
+											detail_card("Listing", location.ranch_name),
 											detail_card("District", district_name),
 											detail_card("Province", province_name),
 											detail_card(
@@ -548,7 +588,6 @@ def create_district_page(animal, location, resolved_location, district_map_figur
 									),
 									html.H3("Area highlights", className="detail-heading"),
 									highlight_section,
-									html.Div(className="note", children=location.area_summary),
 								],
 							),
 						],
@@ -566,7 +605,7 @@ def create_district_missing_page() -> html.Div:
 			html.Section(
 				className="panel animal-page-panel",
 				children=[
-					dcc.Link("Back to ranch catalog", href="/", className="back-link"),
+					dcc.Link("Back to animal catalog", href="/catalog", className="back-link"),
 					html.Div(
 						className="eyebrow-row",
 						children=[
@@ -576,7 +615,7 @@ def create_district_missing_page() -> html.Div:
 					),
 					html.H1("District page not available"),
 					html.P(
-						"We could not load the requested ranch location. Return to the animal page and choose another mapped area.",
+						"We could not load the requested hunt location. Return to the animal page and choose another mapped area.",
 						className="hero-copy",
 					),
 				],

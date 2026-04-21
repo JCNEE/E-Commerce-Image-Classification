@@ -714,6 +714,10 @@ a {
 	line-height: 1.08;
 }
 
+.animal-body > .animal-link {
+	margin-top: auto;
+}
+
 .animal-page-image {
 	border-radius: var(--radius-lg);
 	background: linear-gradient(180deg, #ead8b8, #c89a61);

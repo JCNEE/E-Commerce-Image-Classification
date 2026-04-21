@@ -8,8 +8,7 @@ import time
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 
 # CONFIGURATION
 
