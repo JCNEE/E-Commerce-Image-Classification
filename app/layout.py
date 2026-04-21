@@ -5,16 +5,6 @@ from urllib.parse import urlencode
 from dash import dcc, html
 
 
-STATIC_MAP_CONFIG = {
-	"displayModeBar": False,
-	"responsive": True,
-	"staticPlot": True,
-	"scrollZoom": False,
-	"doubleClick": False,
-	"editable": False,
-}
-
-
 def build_upload_component(upload_key: str | None = None) -> html.Div:
 	return html.Div(
 		id=f"upload-instance-{upload_key or 'initial'}",
@@ -278,8 +268,22 @@ def error_result_card(message: str) -> html.Div:
 	)
 
 
+def static_map_media(
+	image_src: str | None,
+	alt_text: str,
+	empty_message: str,
+) -> html.Div:
+	if image_src:
+		return html.Div(
+			className="range-graph",
+			children=[html.Img(src=image_src, alt=alt_text, className="range-map-image")],
+		)
+
+	return html.Div(className="note", children=empty_message)
+
+
 def range_map_card(prediction) -> html.Div | None:
-	if prediction.range_map_figure is None or not prediction.range_provinces:
+	if prediction.range_map_image_src is None or not prediction.range_provinces:
 		return None
 
 	return html.Div(
@@ -299,10 +303,10 @@ def range_map_card(prediction) -> html.Div | None:
 				],
 			),
 			html.P(prediction.range_summary, className="range-copy"),
-			dcc.Graph(
-				figure=prediction.range_map_figure,
-				className="range-graph",
-				config=STATIC_MAP_CONFIG,
+			static_map_media(
+				image_src=prediction.range_map_image_src,
+				alt_text=f"South Africa range map for {prediction.title}",
+				empty_message="The range map is not available for this animal yet.",
 			),
 		],
 	)
@@ -445,7 +449,7 @@ def create_animal_page(
 	animal,
 	locations=(),
 	resolved_locations=(),
-	location_map_figure=None,
+	location_map_image_src=None,
 ) -> html.Div:
 	map_copy = (
 		"This page shows the South Africa range for the selected animal. Once hunt locations are added, the page can show static markers and district-view cards without relying on map clicks."
@@ -501,11 +505,10 @@ def create_animal_page(
 						map_copy,
 						className="hero-copy",
 					),
-					dcc.Graph(
-						id="animal-location-map",
-						figure=location_map_figure,
-						className="range-graph",
-						config=STATIC_MAP_CONFIG,
+					static_map_media(
+						image_src=location_map_image_src,
+						alt_text=f"Location map for {animal.name}",
+						empty_message="No map is available for this animal yet.",
 					),
 					location_section,
 					(
@@ -522,20 +525,13 @@ def create_animal_page(
 	)
 
 
-def create_district_page(animal, location, resolved_location, district_map_figure) -> html.Div:
+def create_district_page(animal, location, resolved_location, district_map_image_src) -> html.Div:
 	district_name = resolved_location.district_name or "District unavailable"
 	province_name = resolved_location.province_name or "Province unavailable"
-	district_map = (
-		dcc.Graph(
-			figure=district_map_figure,
-			className="range-graph",
-			config=STATIC_MAP_CONFIG,
-		)
-		if district_map_figure is not None
-		else html.Div(
-			className="note",
-			children="We could not build the district map for this location yet.",
-		)
+	district_map = static_map_media(
+		image_src=district_map_image_src,
+		alt_text=f"District map for {location.area_name}",
+		empty_message="We could not build the district map for this location yet.",
 	)
 
 	highlight_section = (

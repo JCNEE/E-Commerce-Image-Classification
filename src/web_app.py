@@ -36,9 +36,9 @@ from app.animal_catalog import (  # noqa: E402
 )
 from app.animal_location_data import get_animal_location, get_animal_locations  # noqa: E402
 from app.animal_range_map import (  # noqa: E402
-	build_animal_location_map,
-	build_district_detail_map,
-	build_sa_range_map,
+	get_animal_location_map_asset_src,
+	get_district_map_asset_src,
+	get_range_map_asset_src,
 	get_species_range_context,
 	resolve_animal_location,
 	resolve_animal_locations,
@@ -71,7 +71,7 @@ class PredictionResult:
 	note: str
 	range_summary: str | None = None
 	range_provinces: tuple[str, ...] = ()
-	range_map_figure: object | None = None
+	range_map_image_src: str | None = None
 	action_href: str | None = None
 	action_label: str | None = None
 	secondary_action_href: str | None = None
@@ -88,16 +88,14 @@ app = Dash(
 server = app.server
 
 
-def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, object | None]:
+def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, str | None]:
 	locations = get_animal_locations(animal.animal_id)
 	resolved_locations = resolve_animal_locations(locations)
-	location_map_figure = build_animal_location_map(animal.name, locations)
-	if location_map_figure is None:
-		location_map_figure = build_sa_range_map(animal.name)
-	return locations, resolved_locations, location_map_figure
+	location_map_image_src = get_animal_location_map_asset_src(animal.animal_id)
+	return locations, resolved_locations, location_map_image_src
 
 
-def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[str, ...], object | None]:
+def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[str, ...], str | None]:
 	range_context = get_species_range_context(species_name)
 	if range_context is None:
 		return None, (), None
@@ -108,7 +106,7 @@ def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[s
 			"in this app's reference map."
 		),
 		range_context.provinces,
-		build_sa_range_map(range_context.canonical_name),
+		get_range_map_asset_src(range_context.canonical_name),
 	)
 
 
@@ -146,7 +144,7 @@ def build_sold_prediction(
 	reasons: list[str],
 	note: str,
 ) -> PredictionResult:
-	range_summary, range_provinces, range_map_figure = get_range_map_payload(animal.name)
+	range_summary, range_provinces, range_map_image_src = get_range_map_payload(animal.name)
 	return PredictionResult(
 		title=animal.name,
 		badge_text="Sold",
@@ -167,7 +165,7 @@ def build_sold_prediction(
 		note=note,
 		range_summary=range_summary,
 		range_provinces=range_provinces,
-		range_map_figure=range_map_figure,
+		range_map_image_src=range_map_image_src,
 		action_href=animal.page_href,
 		action_label="Open animal page",
 		secondary_action_href="/catalog",
@@ -184,7 +182,7 @@ def build_not_sold_prediction(
 ) -> PredictionResult:
 	range_summary = None
 	range_provinces: tuple[str, ...] = ()
-	range_map_figure = None
+	range_map_image_src = None
 	title = "Not sold"
 	summary = (
 		"This upload does not match one of the ten animals currently listed for sale. "
@@ -198,7 +196,7 @@ def build_not_sold_prediction(
 
 	if detected_species:
 		title = f"{detected_species} is not sold"
-		range_summary, range_provinces, range_map_figure = get_range_map_payload(detected_species)
+		range_summary, range_provinces, range_map_image_src = get_range_map_payload(detected_species)
 		if range_summary is not None:
 			summary = (
 				f"This upload looks closest to {detected_species}, but that species is outside the current sold list. "
@@ -218,7 +216,7 @@ def build_not_sold_prediction(
 		note=note,
 		range_summary=range_summary,
 		range_provinces=range_provinces,
-		range_map_figure=range_map_figure,
+		range_map_image_src=range_map_image_src,
 		secondary_action_href="/catalog",
 		secondary_action_label="View full catalog",
 	)
@@ -341,12 +339,12 @@ def render_page(pathname: str | None, search: str | None):
 		if animal is None:
 			return create_animal_missing_page()
 
-		locations, resolved_locations, location_map_figure = get_animal_location_context(animal)
+		locations, resolved_locations, location_map_image_src = get_animal_location_context(animal)
 		return create_animal_page(
 			animal,
 			locations=locations,
 			resolved_locations=resolved_locations,
-			location_map_figure=location_map_figure,
+			location_map_image_src=location_map_image_src,
 		)
 
 	if pathname == "/districts":
@@ -359,12 +357,12 @@ def render_page(pathname: str | None, search: str | None):
 			return create_district_missing_page()
 
 		resolved_location = resolve_animal_location(location)
-		district_map_figure = build_district_detail_map(location)
+		district_map_image_src = get_district_map_asset_src(animal.animal_id, location.location_id)
 		return create_district_page(
 			animal,
 			location,
 			resolved_location,
-			district_map_figure,
+			district_map_image_src,
 		)
 
 	return create_home_page()

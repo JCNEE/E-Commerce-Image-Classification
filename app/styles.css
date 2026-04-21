@@ -602,6 +602,15 @@ a {
 	background: rgba(255, 251, 247, 0.82);
 }
 
+.range-map-image {
+	display: block;
+	width: 100%;
+	height: auto;
+	min-height: 320px;
+	object-fit: cover;
+	background: rgba(255, 251, 247, 0.82);
+}
+
 .range-graph .js-plotly-plot,
 .range-graph .plot-container {
 	width: 100%;

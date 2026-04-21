@@ -1,4 +1,12 @@
-# Optional heavier runtime dependencies for local or paid ML-backed deployment.
+# Extra dependencies for training, preprocessing, and SHAP analysis.
 -r requirements.txt
-keras==3.14.0
-tensorflow==2.21.0
+h5py==3.14.0
+joblib==1.5.3
+kaleido==0.2.1
+matplotlib==3.10.8
+numpy==2.4.4
+pandas==3.0.2
+pillow==12.2.0
+scikit-learn==1.8.0
+seaborn==0.13.2
+shap==0.51.0

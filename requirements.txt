@@ -1,4 +1,6 @@
-# Lightweight Render runtime dependencies for free-tier deployment.
+# Default local dependencies for the Dash app with ML-backed image identification.
 dash==4.1.0
 gunicorn==25.3.0
+keras==3.14.0
 plotly==6.7.0
+tensorflow==2.21.0

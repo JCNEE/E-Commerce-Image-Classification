@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 
 from functools import lru_cache
@@ -14,6 +15,8 @@ from app.animal_location_data import AnimalLocation
 
 ASSETS_PATH = Path(__file__).resolve().parent / "assets"
 GEOJSON_PATH = ASSETS_PATH / "south-africa.geojson"
+GENERATED_MAPS_PATH = ASSETS_PATH / "generated-maps"
+USE_GEOJSON_MAPS = os.getenv("USE_GEOJSON_MAPS", "true").lower() == "true"
 
 SA_PROVINCES = (
 	"Western Cape",
@@ -161,7 +164,7 @@ ANIMAL_RANGE = {
 	"leopard": ("Limpopo", "Mpumalanga", "Western Cape", "KwaZulu-Natal"),
 	"hippopotamus": ("Limpopo", "Mpumalanga", "KwaZulu-Natal", "Eastern Cape"),
 	"wildebeest": ("Limpopo", "Mpumalanga", "North West", "Free State"),
-	"ostrich": ("Western Cape", "Northern Cape", "Eastern Cape", "Free State"),
+	"ostrich": ("Limpopo", "Western Cape", "Northern Cape", "Eastern Cape", "Free State"),
 }
 
 
@@ -329,6 +332,45 @@ def normalise_species_name(species_name: str | None) -> str | None:
 	return canonical_name
 
 
+def _asset_url_for_generated_map(file_path: Path | None) -> str | None:
+	if file_path is None or not file_path.exists():
+		return None
+
+	relative_parts = file_path.relative_to(ASSETS_PATH).parts
+	return "/assets/assets/" + "/".join(relative_parts)
+
+
+def get_range_map_asset_path(species_name: str | None) -> Path | None:
+	canonical_name = normalise_species_name(species_name)
+	if canonical_name is None:
+		return None
+	return GENERATED_MAPS_PATH / "range" / f"{canonical_name}.png"
+
+
+def get_range_map_asset_src(species_name: str | None) -> str | None:
+	return _asset_url_for_generated_map(get_range_map_asset_path(species_name))
+
+
+def get_animal_location_map_asset_path(animal_id: str | None) -> Path | None:
+	if not animal_id:
+		return None
+	return GENERATED_MAPS_PATH / "animal" / f"{animal_id}.png"
+
+
+def get_animal_location_map_asset_src(animal_id: str | None) -> str | None:
+	return _asset_url_for_generated_map(get_animal_location_map_asset_path(animal_id))
+
+
+def get_district_map_asset_path(animal_id: str | None, location_id: str | None) -> Path | None:
+	if not animal_id or not location_id:
+		return None
+	return GENERATED_MAPS_PATH / "district" / f"{animal_id}--{location_id}.png"
+
+
+def get_district_map_asset_src(animal_id: str | None, location_id: str | None) -> str | None:
+	return _asset_url_for_generated_map(get_district_map_asset_path(animal_id, location_id))
+
+
 def get_species_range_context(species_name: str | None) -> SpeciesRangeContext | None:
 	canonical_name = normalise_species_name(species_name)
 	if canonical_name is None:
@@ -339,6 +381,12 @@ def get_species_range_context(species_name: str | None) -> SpeciesRangeContext |
 		display_name=SPECIES_DISPLAY_NAMES.get(canonical_name, canonical_name.title()),
 		provinces=ANIMAL_RANGE[canonical_name],
 	)
+
+
+def clone_figure(figure: go.Figure | None) -> go.Figure | None:
+	if figure is None:
+		return None
+	return go.Figure(figure)
 
 
 def build_sa_geojson_range_map(range_context: SpeciesRangeContext, geojson: dict) -> go.Figure:
@@ -566,26 +614,36 @@ def build_sa_scatter_range_map(range_context: SpeciesRangeContext) -> go.Figure:
 	return fig
 
 
-def build_sa_range_map(species_name: str | None) -> go.Figure | None:
+@lru_cache(maxsize=32)
+def _build_cached_sa_range_map(species_name: str) -> go.Figure | None:
 	range_context = get_species_range_context(species_name)
 	if range_context is None:
 		return None
 
-	geojson = load_sa_geojson()
+	geojson = load_sa_geojson() if USE_GEOJSON_MAPS else None
 	if geojson is not None:
 		return build_sa_geojson_range_map(range_context, geojson)
 
 	return build_sa_scatter_range_map(range_context)
 
 
-def build_animal_location_map(
+def build_sa_range_map(species_name: str | None) -> go.Figure | None:
+	canonical_name = normalise_species_name(species_name)
+	if canonical_name is None:
+		return None
+
+	return clone_figure(_build_cached_sa_range_map(canonical_name))
+
+
+@lru_cache(maxsize=32)
+def _build_cached_animal_location_map(
 	species_name: str | None,
 	locations: tuple[AnimalLocation, ...],
 ) -> go.Figure | None:
 	if not locations:
 		return None
 
-	geojson = load_sa_geojson()
+	geojson = load_sa_geojson() if USE_GEOJSON_MAPS else None
 	resolved_locations = resolve_animal_locations(locations, geojson)
 	range_context = get_species_range_context(species_name)
 
@@ -601,8 +659,17 @@ def build_animal_location_map(
 	return add_location_markers(fig, resolved_locations)
 
 
-def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
-	geojson = load_sa_geojson()
+def build_animal_location_map(
+	species_name: str | None,
+	locations: tuple[AnimalLocation, ...],
+) -> go.Figure | None:
+	species_key = normalise_species_name(species_name) or species_name
+	return clone_figure(_build_cached_animal_location_map(species_key, locations))
+
+
+@lru_cache(maxsize=128)
+def _build_cached_district_detail_map(location: AnimalLocation) -> go.Figure | None:
+	geojson = load_sa_geojson() if USE_GEOJSON_MAPS else None
 	resolved_location = resolve_animal_location(location, geojson)
 
 	if geojson is not None and resolved_location.district_name:
@@ -717,3 +784,7 @@ def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
 		dragmode=False,
 	)
 	return fig
+
+
+def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
+	return clone_figure(_build_cached_district_detail_map(location))
