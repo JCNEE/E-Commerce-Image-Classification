@@ -126,7 +126,7 @@ test_ds  = make_dataset(X_test,  y_test,  augment=False)
 
 #8. Verify a Sample Batch (Sanity Check)
 
-fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+fig, axes = plt.subplots(5, 2, figsize=(6, 15))
 for images_batch, labels_batch in train_ds.take(1):
     for i, ax in enumerate(axes.flat):
         ax.imshow(images_batch[i].numpy())
