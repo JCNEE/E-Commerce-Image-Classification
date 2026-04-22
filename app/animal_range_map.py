@@ -1,3 +1,5 @@
+"""Map helpers for species ranges, hunt locations, and district detail views."""
+
 from __future__ import annotations
 
 import json
@@ -170,6 +172,8 @@ ANIMAL_RANGE = {
 
 @dataclass(frozen=True)
 class SpeciesRangeContext:
+	"""Canonical range metadata used to label and highlight provinces."""
+
 	canonical_name: str
 	display_name: str
 	provinces: tuple[str, ...]
@@ -177,6 +181,8 @@ class SpeciesRangeContext:
 
 @dataclass(frozen=True)
 class ResolvedAnimalLocation:
+	"""Location data enriched with inferred district and province values."""
+
 	location: AnimalLocation
 	district_name: str | None
 	province_name: str | None
@@ -184,6 +190,8 @@ class ResolvedAnimalLocation:
 
 @lru_cache(maxsize=1)
 def load_sa_geojson() -> dict | None:
+	"""Load the South Africa boundary dataset once for map generation and lookup."""
+
 	if not GEOJSON_PATH.exists():
 		return None
 
@@ -196,6 +204,8 @@ def load_sa_geojson() -> dict | None:
 
 @lru_cache(maxsize=1)
 def get_geojson_features_by_name() -> dict[str, dict]:
+	"""Index GeoJSON features by name so district lookups stay cheap."""
+
 	geojson = load_sa_geojson()
 	if geojson is None:
 		return {}
@@ -208,6 +218,8 @@ def get_geojson_features_by_name() -> dict[str, dict]:
 
 
 def iter_feature_polygons(feature: dict) -> tuple[list, ...]:
+	"""Normalise GeoJSON Polygon and MultiPolygon features into one iterable shape."""
+
 	geometry = feature.get("geometry") or {}
 	geometry_type = geometry.get("type")
 	coordinates = geometry.get("coordinates") or []
@@ -219,6 +231,8 @@ def iter_feature_polygons(feature: dict) -> tuple[list, ...]:
 
 
 def point_in_ring(longitude: float, latitude: float, ring: list[list[float]]) -> bool:
+	"""Return whether a coordinate falls inside a single polygon ring."""
+
 	inside = False
 	if len(ring) < 3:
 		return False
@@ -237,6 +251,8 @@ def point_in_ring(longitude: float, latitude: float, ring: list[list[float]]) ->
 
 
 def point_in_polygon(longitude: float, latitude: float, polygon: list[list[list[float]]]) -> bool:
+	"""Return whether a coordinate falls inside a polygon, excluding interior holes."""
+
 	if not polygon:
 		return False
 
@@ -252,6 +268,8 @@ def point_in_polygon(longitude: float, latitude: float, polygon: list[list[list[
 
 
 def find_district_for_coordinate(latitude: float, longitude: float, geojson: dict | None = None) -> str | None:
+	"""Infer the district name for a latitude/longitude pair using the GeoJSON boundaries."""
+
 	geojson = geojson or load_sa_geojson()
 	if geojson is None:
 		return None
@@ -272,6 +290,8 @@ def resolve_animal_location(
 	location: AnimalLocation,
 	geojson: dict | None = None,
 ) -> ResolvedAnimalLocation:
+	"""Fill in missing district and province fields for a stored hunt location."""
+
 	geojson = geojson or load_sa_geojson()
 	district_name = location.district_name or find_district_for_coordinate(
 		location.latitude,
@@ -290,10 +310,14 @@ def resolve_animal_locations(
 	locations: tuple[AnimalLocation, ...],
 	geojson: dict | None = None,
 ) -> tuple[ResolvedAnimalLocation, ...]:
+	"""Resolve district and province metadata for a batch of locations."""
+
 	return tuple(resolve_animal_location(location, geojson) for location in locations)
 
 
 def iter_coordinate_pairs(values) -> tuple[tuple[float, float], ...]:
+	"""Flatten nested GeoJSON coordinate lists into longitude/latitude pairs."""
+
 	if not isinstance(values, list) or not values:
 		return ()
 
@@ -310,6 +334,8 @@ def iter_coordinate_pairs(values) -> tuple[tuple[float, float], ...]:
 
 
 def get_feature_bounds(feature: dict) -> tuple[float, float, float, float] | None:
+	"""Return a GeoJSON feature bounding box for zooming district maps."""
+
 	coordinate_pairs = iter_coordinate_pairs(feature.get("geometry", {}).get("coordinates") or [])
 	if not coordinate_pairs:
 		return None
@@ -320,6 +346,8 @@ def get_feature_bounds(feature: dict) -> tuple[float, float, float, float] | Non
 
 
 def normalise_species_name(species_name: str | None) -> str | None:
+	"""Map free-form species text to the canonical keys used throughout the app."""
+
 	if not species_name:
 		return None
 
@@ -333,6 +361,8 @@ def normalise_species_name(species_name: str | None) -> str | None:
 
 
 def _asset_url_for_generated_map(file_path: Path | None) -> str | None:
+	"""Translate a generated map path into the static asset URL Dash serves."""
+
 	if file_path is None or not file_path.exists():
 		return None
 
@@ -341,6 +371,8 @@ def _asset_url_for_generated_map(file_path: Path | None) -> str | None:
 
 
 def get_range_map_asset_path(species_name: str | None) -> Path | None:
+	"""Return the on-disk PNG path for a species range map."""
+
 	canonical_name = normalise_species_name(species_name)
 	if canonical_name is None:
 		return None
@@ -348,30 +380,42 @@ def get_range_map_asset_path(species_name: str | None) -> Path | None:
 
 
 def get_range_map_asset_src(species_name: str | None) -> str | None:
+	"""Return the served asset URL for a species range map image."""
+
 	return _asset_url_for_generated_map(get_range_map_asset_path(species_name))
 
 
 def get_animal_location_map_asset_path(animal_id: str | None) -> Path | None:
+	"""Return the on-disk PNG path for a routed animal-location map."""
+
 	if not animal_id:
 		return None
 	return GENERATED_MAPS_PATH / "animal" / f"{animal_id}.png"
 
 
 def get_animal_location_map_asset_src(animal_id: str | None) -> str | None:
+	"""Return the served asset URL for an animal-location map image."""
+
 	return _asset_url_for_generated_map(get_animal_location_map_asset_path(animal_id))
 
 
 def get_district_map_asset_path(animal_id: str | None, location_id: str | None) -> Path | None:
+	"""Return the on-disk PNG path for a district detail map."""
+
 	if not animal_id or not location_id:
 		return None
 	return GENERATED_MAPS_PATH / "district" / f"{animal_id}--{location_id}.png"
 
 
 def get_district_map_asset_src(animal_id: str | None, location_id: str | None) -> str | None:
+	"""Return the served asset URL for a district detail map image."""
+
 	return _asset_url_for_generated_map(get_district_map_asset_path(animal_id, location_id))
 
 
 def get_species_range_context(species_name: str | None) -> SpeciesRangeContext | None:
+	"""Return canonical display text and provinces for a supported species."""
+
 	canonical_name = normalise_species_name(species_name)
 	if canonical_name is None:
 		return None
@@ -384,12 +428,16 @@ def get_species_range_context(species_name: str | None) -> SpeciesRangeContext |
 
 
 def clone_figure(figure: go.Figure | None) -> go.Figure | None:
+	"""Copy cached figures so callers can modify them without mutating shared state."""
+
 	if figure is None:
 		return None
 	return go.Figure(figure)
 
 
 def build_sa_geojson_range_map(range_context: SpeciesRangeContext, geojson: dict) -> go.Figure:
+	"""Build a choropleth map that highlights the configured provinces for a species."""
+
 	highlighted_provinces = set(range_context.provinces)
 	locations: list[str] = []
 	zone_values: list[int] = []
@@ -448,6 +496,8 @@ def build_sa_geojson_range_map(range_context: SpeciesRangeContext, geojson: dict
 
 
 def build_neutral_geojson_map(geojson: dict) -> go.Figure:
+	"""Build a neutral province map used when no species range is available."""
+
 	locations: list[str] = []
 	hover_text: list[str] = []
 
@@ -492,6 +542,8 @@ def build_neutral_geojson_map(geojson: dict) -> go.Figure:
 
 
 def add_location_markers(fig: go.Figure, resolved_locations: tuple[ResolvedAnimalLocation, ...]) -> go.Figure:
+	"""Overlay stored hunt locations on top of an existing range or district figure."""
+
 	if not resolved_locations:
 		return fig
 
@@ -528,6 +580,7 @@ def add_location_markers(fig: go.Figure, resolved_locations: tuple[ResolvedAnima
 
 
 def build_sa_scatter_range_map(range_context: SpeciesRangeContext) -> go.Figure:
+	"""Build a lightweight centroid-based map when the GeoJSON file is unavailable."""
 
 	highlighted_provinces = set(range_context.provinces)
 	inactive_lons: list[float] = []
@@ -616,6 +669,8 @@ def build_sa_scatter_range_map(range_context: SpeciesRangeContext) -> go.Figure:
 
 @lru_cache(maxsize=32)
 def _build_cached_sa_range_map(species_name: str) -> go.Figure | None:
+	"""Cache the base range figure for each canonical species name."""
+
 	range_context = get_species_range_context(species_name)
 	if range_context is None:
 		return None
@@ -628,6 +683,8 @@ def _build_cached_sa_range_map(species_name: str) -> go.Figure | None:
 
 
 def build_sa_range_map(species_name: str | None) -> go.Figure | None:
+	"""Return a cloned South Africa range figure for a species."""
+
 	canonical_name = normalise_species_name(species_name)
 	if canonical_name is None:
 		return None
@@ -640,6 +697,8 @@ def _build_cached_animal_location_map(
 	species_name: str | None,
 	locations: tuple[AnimalLocation, ...],
 ) -> go.Figure | None:
+	"""Cache the combined range-and-location figure for an animal page."""
+
 	if not locations:
 		return None
 
@@ -663,12 +722,16 @@ def build_animal_location_map(
 	species_name: str | None,
 	locations: tuple[AnimalLocation, ...],
 ) -> go.Figure | None:
+	"""Return a cloned animal-location figure for use outside the cache."""
+
 	species_key = normalise_species_name(species_name) or species_name
 	return clone_figure(_build_cached_animal_location_map(species_key, locations))
 
 
 @lru_cache(maxsize=128)
 def _build_cached_district_detail_map(location: AnimalLocation) -> go.Figure | None:
+	"""Cache the figure used by district detail pages for a specific hunt location."""
+
 	geojson = load_sa_geojson() if USE_GEOJSON_MAPS else None
 	resolved_location = resolve_animal_location(location, geojson)
 
@@ -787,4 +850,6 @@ def _build_cached_district_detail_map(location: AnimalLocation) -> go.Figure | N
 
 
 def build_district_detail_map(location: AnimalLocation) -> go.Figure | None:
+	"""Return a cloned district detail map for the selected hunt location."""
+
 	return clone_figure(_build_cached_district_detail_map(location))

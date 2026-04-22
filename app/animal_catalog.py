@@ -1,3 +1,5 @@
+"""Catalog data and lookup helpers for the sold-animal listing pages."""
+
 from __future__ import annotations
 
 import re
@@ -10,6 +12,8 @@ ASSETS_PATH = Path(__file__).resolve().parent / "assets"
 
 
 def _build_placeholder_image(title: str, accent_start: str, accent_end: str) -> str:
+	"""Return a lightweight SVG placeholder when a catalog image file is missing."""
+
 	svg = f"""
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="{title}">
 	  <defs>
@@ -30,6 +34,8 @@ def _build_placeholder_image(title: str, accent_start: str, accent_end: str) -> 
 
 
 def _asset_or_placeholder(filename: str, title: str, accent_start: str, accent_end: str) -> str:
+	"""Resolve a real asset URL when available, otherwise fall back to generated artwork."""
+
 	asset_path = ASSETS_PATH / filename
 	if asset_path.exists():
 		return f"/assets/assets/{filename}"
@@ -37,6 +43,8 @@ def _asset_or_placeholder(filename: str, title: str, accent_start: str, accent_e
 
 
 def normalise_animal_text(value: str | None) -> str:
+	"""Normalise animal names so aliases can be matched reliably across inputs."""
+
 	if not value:
 		return ""
 
@@ -47,11 +55,15 @@ def normalise_animal_text(value: str | None) -> str:
 
 
 def _format_rand(value: int) -> str:
+	"""Render integer prices in a South African Rand display format."""
+
 	return f"R {value:,}".replace(",", " ")
 
 
 @dataclass(frozen=True)
 class RanchAnimal:
+	"""Structured catalog record used by the catalog, animal, and prediction pages."""
+
 	animal_id: str
 	name: str
 	scientific_name: str
@@ -69,19 +81,26 @@ class RanchAnimal:
 
 	@property
 	def page_href(self) -> str:
+		"""Return the routed animal-detail URL for this catalog entry."""
+
 		return "/animals?" + urlencode({"animal": self.animal_id})
 
 	@property
 	def price_display(self) -> str:
+		"""Return the formatted guide price shown in the UI."""
+
 		return _format_rand(self.price_zar)
 
 	@property
 	def permit_status(self) -> str:
+		"""Return the permit summary displayed on cards and detail pages."""
+
 		if self.permit_required:
 			return "Permit required"
 		return "Standard ranch approval"
 
 
+# Static catalog content used to drive the Dash pages and sold-animal routing.
 RANCH_ANIMALS = (
 	RanchAnimal(
 		"greater-kudu",
@@ -327,12 +346,16 @@ ANIMAL_ALIAS_PHRASES = tuple(sorted(ANIMAL_ALIASES.items(), key=lambda item: len
 
 
 def get_ranch_animal(animal_id: str | None) -> RanchAnimal | None:
+	"""Look up a catalog animal by its stable route identifier."""
+
 	if not animal_id:
 		return None
 	return RANCH_ANIMALS_BY_ID.get(animal_id)
 
 
 def infer_catalog_animal_id(text: str | None) -> str | None:
+	"""Resolve free-form text to the closest configured catalog animal identifier."""
+
 	normalised = normalise_animal_text(text)
 	if not normalised:
 		return None
@@ -346,4 +369,6 @@ def infer_catalog_animal_id(text: str | None) -> str | None:
 
 
 def infer_catalog_animal(text: str | None) -> RanchAnimal | None:
+	"""Return the catalog animal object inferred from free-form text or filenames."""
+
 	return get_ranch_animal(infer_catalog_animal_id(text))

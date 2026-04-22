@@ -1,3 +1,5 @@
+"""Dash entrypoint for the Bosvelder Ranch animal-classification experience."""
+
 from __future__ import annotations
 
 import base64
@@ -58,6 +60,8 @@ SUPPORTED_IMAGE_TYPES = {
 
 @dataclass(frozen=True)
 class PredictionResult:
+	"""UI-ready prediction payload consumed by the result and detail pages."""
+
 	title: str
 	badge_text: str
 	confidence: float
@@ -79,6 +83,7 @@ class PredictionResult:
 	secondary_action_label: str | None = None
 
 
+# Configure the shared Dash app instance used by both local and deployed entrypoints.
 app = Dash(
 	__name__,
 	title="Bosvelder Sale Catalog",
@@ -90,6 +95,8 @@ server = app.server
 
 
 def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, str | None]:
+	"""Collect saved ranch locations and the matching static map asset for an animal."""
+
 	locations = get_animal_locations(animal.animal_id)
 	resolved_locations = resolve_animal_locations(locations)
 	location_map_image_src = get_animal_location_map_asset_src(animal.animal_id)
@@ -97,6 +104,8 @@ def get_animal_location_context(animal: RanchAnimal) -> tuple[tuple, tuple, str 
 
 
 def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[str, ...], str | None]:
+	"""Build the text and image payload needed to show a species range card."""
+
 	range_context = get_species_range_context(species_name)
 	if range_context is None:
 		return None, (), None
@@ -112,12 +121,16 @@ def get_range_map_payload(species_name: str | None) -> tuple[str | None, tuple[s
 
 
 def normalise_file_name(file_name: str | None) -> str:
+	"""Return a safe upload name so downstream logic always has a usable label."""
+
 	if file_name and file_name.strip():
 		return file_name.strip()
 	return "uploaded-animal"
 
 
 def decode_upload(contents: str) -> tuple[str, bytes]:
+	"""Validate and decode a Dash upload payload into its MIME type and raw bytes."""
+
 	if not contents or "," not in contents:
 		raise ValueError("The upload payload is invalid. Please select the image again.")
 
@@ -147,6 +160,8 @@ def build_sold_prediction(
 	top_candidates: tuple[tuple[str, float], ...] = (),
 	catalog_breakdown: tuple[tuple[str, float], ...] = (),
 ) -> PredictionResult:
+	"""Create the result payload for animals that resolve to the sold catalog."""
+
 	range_summary, range_provinces, range_map_image_src = get_range_map_payload(animal.name)
 	return PredictionResult(
 		title=animal.name,
@@ -190,6 +205,8 @@ def build_not_sold_prediction(
 	top_candidates: tuple[tuple[str, float], ...] = (),
 	catalog_breakdown: tuple[tuple[str, float], ...] = (),
 ) -> PredictionResult:
+	"""Create the result payload for uploads that fall outside the sold catalog."""
+
 	range_summary = None
 	range_provinces: tuple[str, ...] = ()
 	range_map_image_src = None
@@ -235,6 +252,8 @@ def build_not_sold_prediction(
 
 
 def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult:
+	"""Run the LiteRT-backed classifier and translate its output into UI copy."""
+
 	runtime_prediction = predict_with_runtime(image_bytes=image_bytes, file_name=file_name)
 	reasons = list(runtime_prediction.reasons)
 
@@ -269,6 +288,8 @@ def run_demo_prediction(
 	mode_label: str,
 	runtime_note: str | None = None,
 ) -> PredictionResult:
+	"""Use filename-based fallback rules when the runtime cannot be loaded."""
+
 	matched_animal = infer_catalog_animal(file_name)
 	detected_species = infer_outside_species_name(file_name)
 	reasons = [
@@ -307,6 +328,8 @@ def run_demo_prediction(
 
 
 def classify_upload(file_name: str, mime_type: str, image_bytes: bytes) -> PredictionResult:
+	"""Prefer the live runtime and fall back to deterministic demo behaviour on failure."""
+
 	try:
 		return run_model_prediction(image_bytes=image_bytes, file_name=file_name)
 	except ModelRuntimeUnavailable as exc:
@@ -318,6 +341,7 @@ def classify_upload(file_name: str, mime_type: str, image_bytes: bytes) -> Predi
 		)
 
 
+# Pre-register every routable page so Dash can validate callbacks for dynamic layouts.
 app.layout = create_layout()
 app.validation_layout = html.Div(
 	[
@@ -337,6 +361,8 @@ app.validation_layout = html.Div(
 	Input("url", "search"),
 )
 def render_page(pathname: str | None, search: str | None):
+	"""Route the current URL to the correct catalog, animal, district, or home page."""
+
 	query_params = parse_qs((search or "").lstrip("?"))
 
 	if pathname == "/catalog":
@@ -374,6 +400,8 @@ def render_page(pathname: str | None, search: str | None):
 		)
 
 	return create_home_page()
+
+
 @app.callback(
 	Output("upload-shell", "children"),
 	Output("result-panel", "children"),
@@ -381,6 +409,8 @@ def render_page(pathname: str | None, search: str | None):
 	State("image-upload", "filename"),
 )
 def update_prediction(contents: str | None, file_name: str | None):
+	"""Refresh the upload widget and result panel after each submitted image."""
+
 	if not contents:
 		return no_update, None
 

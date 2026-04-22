@@ -1,3 +1,4 @@
+/* Theme tokens shared across the catalog, result, and map views. */
 :root {
 	--bg: #f5efe4;
 	--bg-alt: #e6d8bf;
@@ -48,6 +49,7 @@ a {
 	text-decoration: none;
 }
 
+/* Page shell, ambient background accents, and top-level panel wrappers. */
 .shell {
 	position: relative;
 	min-height: 100vh;
@@ -231,6 +233,7 @@ a {
 	font-size: 1.06rem;
 }
 
+/* Shared grid systems and reusable card shells used across multiple pages. */
 .hero-metrics,
 .helper-row,
 .meta-grid,
@@ -412,6 +415,7 @@ a {
 	color: var(--muted);
 }
 
+/* Upload, preview, and prediction result states on the home page. */
 .upload-area {
 	display: block;
 	overflow: hidden;
@@ -588,6 +592,7 @@ a {
 	background: linear-gradient(90deg, #74675c, #a09388);
 }
 
+/* Range maps and model summary charts shown inside result cards. */
 .range-card {
 	display: flex;
 	flex-direction: column;
@@ -757,6 +762,7 @@ a {
 	opacity: 0.96;
 }
 
+/* Catalog cards and animal-detail content blocks. */
 .animal-card {
 	display: flex;
 	flex-direction: column;
@@ -831,6 +837,7 @@ a {
 	background: linear-gradient(180deg, #ead8b8, #c89a61);
 }
 
+/* Responsive layout adjustments for tablet and mobile breakpoints. */
 @media (max-width: 1080px) {
 	.feedback-grid,
 	.hero-metrics,

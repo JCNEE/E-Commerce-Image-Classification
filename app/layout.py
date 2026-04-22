@@ -1,3 +1,5 @@
+"""Dash component builders for catalog pages, results, and static map views."""
+
 from __future__ import annotations
 
 from urllib.parse import urlencode
@@ -7,6 +9,8 @@ import plotly.graph_objects as go
 
 
 def build_upload_component(upload_key: str | None = None) -> html.Div:
+	"""Build the upload widget shell, optionally forcing a fresh Dash component key."""
+
 	return html.Div(
 		id=f"upload-instance-{upload_key or 'initial'}",
 		children=[
@@ -30,6 +34,8 @@ def build_upload_component(upload_key: str | None = None) -> html.Div:
 
 
 def metric_card(label: str, value: str) -> html.Div:
+	"""Render a compact metric tile used in hero and detail summaries."""
+
 	return html.Div(
 		className="metric-card",
 		children=[
@@ -40,6 +46,8 @@ def metric_card(label: str, value: str) -> html.Div:
 
 
 def meta_item(label: str, value: str) -> html.Div:
+	"""Render a key-value item for prediction metadata grids."""
+
 	return html.Div(
 		className="meta-item",
 		children=[
@@ -50,6 +58,8 @@ def meta_item(label: str, value: str) -> html.Div:
 
 
 def animal_info_row(label: str, value: str) -> html.Div:
+	"""Render a two-column info row for catalog animal cards."""
+
 	return html.Div(
 		className="animal-info-row",
 		children=[
@@ -60,6 +70,8 @@ def animal_info_row(label: str, value: str) -> html.Div:
 
 
 def detail_card(label: str, value: str) -> html.Div:
+	"""Render a detail tile for animal and district pages."""
+
 	return html.Div(
 		className="detail-card",
 		children=[
@@ -70,10 +82,14 @@ def detail_card(label: str, value: str) -> html.Div:
 
 
 def location_page_href(animal_id: str, location_id: str) -> str:
+	"""Build the routed district URL for a selected animal location."""
+
 	return "/districts?" + urlencode({"animal": animal_id, "location": location_id})
 
 
 def location_card(animal_id: str, location, resolved_location) -> html.Article:
+	"""Render a hunt-location card that links to the district detail page."""
+
 	district_name = resolved_location.district_name or "District pending"
 	province_name = resolved_location.province_name or "Province pending"
 	highlight_list = None
@@ -109,6 +125,8 @@ def location_card(animal_id: str, location, resolved_location) -> html.Article:
 
 
 def animal_card(animal) -> html.Article:
+	"""Render one catalog card for the browse-all animals page."""
+
 	return html.Article(
 		className="animal-card",
 		children=[
@@ -136,6 +154,8 @@ def animal_card(animal) -> html.Article:
 
 
 def create_catalog_page(animals) -> html.Div:
+	"""Build the catalog landing page that lists every sold animal."""
+
 	return html.Div(
 		className="page",
 		children=[
@@ -166,6 +186,8 @@ def create_catalog_page(animals) -> html.Div:
 
 
 def empty_preview() -> html.Div:
+	"""Render the placeholder shown before a user uploads an image."""
+
 	return html.Div(
 		className="preview-empty",
 		children=[
@@ -182,6 +204,8 @@ def empty_preview() -> html.Div:
 
 
 def image_preview(contents: str, file_name: str, size_kb: float) -> html.Div:
+	"""Render the uploaded image preview and its basic file metadata."""
+
 	return html.Div(
 		className="preview-card",
 		children=[
@@ -198,6 +222,8 @@ def image_preview(contents: str, file_name: str, size_kb: float) -> html.Div:
 
 
 def error_preview(message: str) -> html.Div:
+	"""Render a preview placeholder that explains why an upload was rejected."""
+
 	return html.Div(
 		className="preview-empty",
 		children=[
@@ -212,6 +238,8 @@ def error_preview(message: str) -> html.Div:
 
 
 def default_result_card() -> html.Div:
+	"""Render the neutral result state shown before a classification happens."""
+
 	return html.Div(
 		className="result-shell",
 		children=[
@@ -263,6 +291,8 @@ def default_result_card() -> html.Div:
 
 
 def error_result_card(message: str) -> html.Div:
+	"""Render the error state used when upload validation fails."""
+
 	return html.Div(
 		className="result-shell",
 		children=[
@@ -292,6 +322,8 @@ def static_map_media(
 	alt_text: str,
 	empty_message: str,
 ) -> html.Div:
+	"""Render a static map image when available, or a note when it is missing."""
+
 	if image_src:
 		return html.Div(
 			className="range-graph",
@@ -302,6 +334,8 @@ def static_map_media(
 
 
 def range_map_card(prediction) -> html.Div | None:
+	"""Build the province-range card for sold or recognised outside-catalog species."""
+
 	if prediction.range_map_image_src is None or not prediction.range_provinces:
 		return None
 
@@ -332,6 +366,8 @@ def range_map_card(prediction) -> html.Div | None:
 
 
 def build_top_candidates_figure(prediction):
+	"""Create the horizontal bar chart for the strongest model candidates."""
+
 	labels = [label for label, _ in prediction.top_candidates]
 	values = [score for _, score in prediction.top_candidates]
 	if not labels or not values:
@@ -370,6 +406,8 @@ def build_top_candidates_figure(prediction):
 
 
 def build_catalog_breakdown_figure(prediction):
+	"""Create the donut chart that compares sold-catalog and outside-catalog evidence."""
+
 	labels = [label for label, _ in prediction.catalog_breakdown]
 	values = [score for _, score in prediction.catalog_breakdown]
 	if not labels or not values:
@@ -416,6 +454,8 @@ def build_catalog_breakdown_figure(prediction):
 
 
 def static_plotly_graph(figure) -> dcc.Graph:
+	"""Render a Plotly figure in non-interactive mode for lightweight hosting."""
+
 	return dcc.Graph(
 		figure=figure,
 		config={
@@ -428,6 +468,8 @@ def static_plotly_graph(figure) -> dcc.Graph:
 
 
 def classification_graphs(prediction) -> html.Div | None:
+	"""Build the optional classification-analytics section shown on result cards."""
+
 	top_candidates_figure = build_top_candidates_figure(prediction)
 	catalog_breakdown_figure = build_catalog_breakdown_figure(prediction)
 	if top_candidates_figure is None and catalog_breakdown_figure is None:
@@ -476,6 +518,8 @@ def classification_graphs(prediction) -> html.Div | None:
 
 
 def result_card(prediction) -> html.Div:
+	"""Render the full prediction result card, including actions and optional charts."""
+
 	confidence_width = f"{prediction.confidence * 100:.0f}%"
 	action_links: list[html.Component] = []
 	range_card = range_map_card(prediction)
@@ -559,6 +603,8 @@ def result_card(prediction) -> html.Div:
 
 
 def create_home_page() -> html.Div:
+	"""Build the landing page with the upload prompt and deferred results panel."""
+
 	return html.Div(
 		className="page",
 		children=[
@@ -609,6 +655,8 @@ def create_animal_page(
 	resolved_locations=(),
 	location_map_image_src=None,
 ) -> html.Div:
+	"""Build the animal detail page with static maps, facts, and hunt-location cards."""
+
 	map_copy = (
 		"This page shows the South Africa range for the selected animal. Once hunt locations are added, the page can show static markers and district-view cards without relying on map clicks."
 	)
@@ -725,6 +773,8 @@ def create_animal_page(
 
 
 def create_district_page(animal, location, resolved_location, district_map_image_src) -> html.Div:
+	"""Build the district detail page for one saved hunt location."""
+
 	district_name = resolved_location.district_name or "District unavailable"
 	province_name = resolved_location.province_name or "Province unavailable"
 	district_map = static_map_media(
@@ -794,6 +844,8 @@ def create_district_page(animal, location, resolved_location, district_map_image
 
 
 def create_district_missing_page() -> html.Div:
+	"""Build the fallback page shown when a district route cannot be resolved."""
+
 	return html.Div(
 		className="page",
 		children=[
@@ -820,6 +872,8 @@ def create_district_missing_page() -> html.Div:
 
 
 def create_animal_missing_page() -> html.Div:
+	"""Build the fallback page shown when an animal route cannot be resolved."""
+
 	return html.Div(
 		className="page",
 		children=[
@@ -846,6 +900,8 @@ def create_animal_missing_page() -> html.Div:
 
 
 def create_layout() -> html.Div:
+	"""Build the top-level shell that wraps ambient background layers and routed content."""
+
 	return html.Div(
 		className="shell",
 		children=[

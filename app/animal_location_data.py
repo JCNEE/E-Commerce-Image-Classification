@@ -1,3 +1,5 @@
+"""Saved ranch-location records and helpers for animal and district pages."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +7,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class AnimalLocation:
+	"""Static location metadata for a hunt site shown in the catalog experience."""
+
 	location_id: str
 	area_name: str
 	ranch_name: str
@@ -18,6 +22,8 @@ class AnimalLocation:
 
 
 def _build_area_summary(area_name: str, species_name: str, district_name: str, province_name: str) -> str:
+	"""Create the short location summary stored with each ranch area."""
+
 	return (
 		f"{area_name} is stored in the app as a {species_name.lower()} hunting location "
 		f"in {district_name}, {province_name}."
@@ -25,6 +31,8 @@ def _build_area_summary(area_name: str, species_name: str, district_name: str, p
 
 
 def _build_district_story(area_name: str, species_name: str, district_name: str, province_name: str) -> str:
+	"""Create the lead paragraph used on the district detail page."""
+
 	return (
 		f"This district view centers on {district_name} in {province_name}, where {area_name} is "
 		f"listed as one of the configured {species_name.lower()} hunting locations."
@@ -32,6 +40,8 @@ def _build_district_story(area_name: str, species_name: str, district_name: str,
 
 
 def _build_highlights(species_name: str, district_name: str, province_name: str) -> tuple[str, ...]:
+	"""Generate reusable bullet-point highlights for a district page."""
+
 	return (
 		f"Configured species: {species_name}.",
 		f"District focus: {district_name}, {province_name}.",
@@ -49,6 +59,8 @@ def _location(
 	province_name: str,
 	species_name: str,
 ) -> AnimalLocation:
+	"""Build a location record while keeping summary text generation in one place."""
+
 	return AnimalLocation(
 		location_id=location_id,
 		area_name=area_name,
@@ -63,6 +75,7 @@ def _location(
 	)
 
 
+# Static hunt-location data grouped by the sold-animal identifiers used in routing.
 ANIMAL_LOCATION_DATA: dict[str, tuple[AnimalLocation, ...]] = {
 	"buffalo": (
 		_location(
@@ -288,12 +301,16 @@ ANIMAL_LOCATION_DATA: dict[str, tuple[AnimalLocation, ...]] = {
 
 
 def get_animal_locations(animal_id: str | None) -> tuple[AnimalLocation, ...]:
+	"""Return every saved hunt location for a routed animal page."""
+
 	if not animal_id:
 		return ()
 	return ANIMAL_LOCATION_DATA.get(animal_id, ())
 
 
 def get_animal_location(animal_id: str | None, location_id: str | None) -> AnimalLocation | None:
+	"""Return a single location record for the selected district page."""
+
 	if not animal_id or not location_id:
 		return None
 
