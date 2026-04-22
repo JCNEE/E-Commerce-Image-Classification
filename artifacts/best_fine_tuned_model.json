@@ -1,6 +1,6 @@
 {
   "best_model": "MobileNetV2",
-  "accuracy": 0.9601769911504425,
+  "accuracy": 0.9513274336283186,
   "classes": [
     "buffalo",
     "elephant",
