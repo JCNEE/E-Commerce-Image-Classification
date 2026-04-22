@@ -1,6 +1,9 @@
-# Default local dependencies for the Dash app with ML-backed image identification.
+# Default local dependencies for the Dash app with a LiteRT website runtime and local export utilities.
+ai-edge-litert==2.1.4
 dash==4.1.0
 gunicorn==25.3.0
 keras==3.14.0
+numpy==2.4.4
+pillow==12.2.0
 plotly==6.7.0
 tensorflow==2.21.0

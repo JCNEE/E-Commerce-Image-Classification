@@ -2,10 +2,7 @@
 
 This project is a Dash-based e-commerce prototype for animal hunting sales. It combines a sale catalog, animal detail pages, South African range and location maps, and image-based animal identification so a user can upload a photo and see whether the species is part of the current sold list.
 
-The application is published on Render and is designed around two runtime modes:
-
-- Local development and model training can still use full TensorFlow and Keras.
-- Render deployment now uses TensorFlow Lite through LiteRT so the hosted web app does not need the full TensorFlow runtime.
+The website now uses a single MobileNetV2 TensorFlow Lite runtime through LiteRT. Training and notebook workflows remain separate TensorFlow workflows and are not loaded by the website at request time.
 
 ## What the App Does
 
@@ -32,10 +29,9 @@ The sold-animal catalog currently maps to these ten configured sale species:
 ## Project Layout
 
 - `src/web_app.py`: Dash entrypoint used by Gunicorn on Render.
-- `src/model_runtime.py`: runtime prediction logic for TensorFlow and LiteRT backends.
+- `src/model_runtime.py`: TFLite website runtime plus the MobileNetV2 asset export command.
 - `src/train_models.py`: fine-tuning workflow for project models.
 - `src/generate_map_images.py`: static map export pipeline.
-- `app/export_tflite_assets.py`: exports the MobileNetV2 LiteRT model and ImageNet label index for Render.
 - `app/`: layout, styling, catalog data, and map helpers.
 - `artifacts/`: charts, metadata, and model-related deployment assets.
 - `data/`: raw datasets and image files.
@@ -43,8 +39,8 @@ The sold-animal catalog currently maps to these ten configured sale species:
 
 ## Requirements Files
 
-- `requirements.txt`: local app runtime with full TensorFlow for development.
-- `requirements-ml.txt`: training, preprocessing, visualization, and analysis dependencies.
+- `requirements.txt`: local app runtime plus the packages needed to export the TFLite assets.
+- `Installable-requirements.txt`: broader package snapshot for notebook, training, and analysis workflows.
 - `requirements-render.txt`: Render deployment dependencies using LiteRT instead of TensorFlow.
 
 ## Local Setup
@@ -68,31 +64,16 @@ The deployed server entrypoint is:
 gunicorn src.web_app:server --workers 1 --threads 2 --timeout 180
 ```
 
-## Image Classification Modes
+## Website Runtime
 
-The app supports two prediction paths.
+The website now has one prediction path.
 
-### 1. Generic ImageNet Runtime
+- Runtime: MobileNetV2 TensorFlow Lite through LiteRT
+- Assets: `artifacts/mobilenet_v2_imagenet.tflite` and `artifacts/imagenet_class_index.json`
+- Result logic: the TFLite model predicts the closest ImageNet label, and the app maps matching species into the sold catalog
+- Fallback: if the LiteRT output does not map to a sold class, the site can still use filename cues before routing the upload to not sold
 
-This is the safest hosted option and the current Render default.
-
-- Local backend: `mobilenet_v2`, `mobilenet_v3_small`, `efficientnet_b0`, or `resnet50`
-- Render backend: `mobilenet_v2_tflite`
-- Result logic: a generic vision model predicts the closest ImageNet label, and the app maps matching species into the sold catalog
-
-### 2. Fine-Tuned Project Model
-
-This path is intended for a real project-specific classifier trained from your dataset.
-
-- Backend: `project_model`
-- Artifact metadata: `artifacts/best_fine_tuned_model.json`
-- Model file expected locally: a matching `.h5` file in `artifacts/`
-
-Important:
-
-- The checked-in metadata currently only lists four classes: buffalo, elephant, rhino, and zebra.
-- Because the configured sale catalog contains ten sold species, the strict project-model path is intentionally blocked unless the metadata and model cover the full configured catalog.
-- That means the current hosted app should use the generic MobileNetV2 LiteRT path unless you add a complete fine-tuned artifact set.
+This keeps the hosted app lightweight while leaving training scripts separate from the live request path.
 
 ## Export LiteRT Assets for Render
 
@@ -101,15 +82,15 @@ Render uses a TensorFlow Lite version of MobileNetV2 together with a checked-in 
 Generate those assets locally with:
 
 ```bash
-python app/export_tflite_assets.py
+python src/model_runtime.py
 ```
 
-This script writes:
+This command writes:
 
 - `artifacts/mobilenet_v2_imagenet.tflite`
 - `artifacts/imagenet_class_index.json`
 
-These files are required for the `mobilenet_v2_tflite` backend.
+TensorFlow and Keras are only needed for this export step. The hosted website runtime itself uses LiteRT.
 
 ## Generate Static Map Images
 
@@ -149,19 +130,18 @@ Use these settings:
 Set these environment variables:
 
 - `PYTHON_VERSION=3.12.10`
-- `USE_TRAINED_MODEL=true`
-- `MODEL_BACKEND=mobilenet_v2_tflite`
 
 Render notes:
 
 - The hosted site now uses LiteRT instead of the full TensorFlow package.
 - This keeps the deployment lighter while preserving image-driven predictions.
 - The hosted path depends on `artifacts/mobilenet_v2_imagenet.tflite` and `artifacts/imagenet_class_index.json` being present in the repo.
-- If you later want to host a project-specific classifier, export and ship a matching deployment-ready artifact set first.
 
 ## Training and Analysis
 
-Training and notebook workflows remain local TensorFlow workflows.
+Training and notebook workflows remain separate TensorFlow workflows.
+
+Use an environment with TensorFlow installed before running those scripts or regenerating the TFLite export assets.
 
 Useful files:
 
@@ -174,11 +154,10 @@ Useful files:
 
 ## Current State and Limitations
 
-- The current checked-in fine-tuned metadata is not yet a full ten-species sale model.
-- The generic ImageNet runtime is useful for deployment and demo classification, but it is not a replacement for a properly trained project classifier.
+- The website uses a generic MobileNetV2/ImageNet TFLite model and a strict sold-animal mapping, so it is still not a replacement for a properly fine-tuned project classifier.
 - File-name fallback logic still exists for cases where a generic label does not cleanly map to a sold class.
 - Render is optimized for inference and static asset serving, not for model training.
 
 ## Summary
 
-Use `requirements.txt` for local development, `requirements-ml.txt` for training and analysis, and `requirements-render.txt` for the hosted Render service. For Render, export the LiteRT assets, keep the static maps committed, and deploy with `MODEL_BACKEND=mobilenet_v2_tflite`.
+Use `requirements.txt` for the web app and TFLite asset export, `Installable-requirements.txt` when you want the broader ML workflow dependencies, and `requirements-render.txt` for the hosted Render service. For Render, export the LiteRT assets, keep the static maps committed, and deploy without any model-backend flags.

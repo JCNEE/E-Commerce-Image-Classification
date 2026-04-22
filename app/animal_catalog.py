@@ -46,6 +46,10 @@ def normalise_animal_text(value: str | None) -> str:
 	return " ".join(text.split())
 
 
+def _format_rand(value: int) -> str:
+	return f"R {value:,}".replace(",", " ")
+
+
 @dataclass(frozen=True)
 class RanchAnimal:
 	animal_id: str
@@ -56,12 +60,26 @@ class RanchAnimal:
 	description: str
 	habitat_zone: str
 	best_viewing: str
+	price_zar: int
+	permit_required: bool
+	permit_guidance: str
+	safari_drive_opportunity: str
 	image_src: str
 	traits: tuple[str, ...]
 
 	@property
 	def page_href(self) -> str:
 		return "/animals?" + urlencode({"animal": self.animal_id})
+
+	@property
+	def price_display(self) -> str:
+		return _format_rand(self.price_zar)
+
+	@property
+	def permit_status(self) -> str:
+		if self.permit_required:
+			return "Permit required"
+		return "Standard ranch approval"
 
 
 RANCH_ANIMALS = (
@@ -74,6 +92,10 @@ RANCH_ANIMALS = (
 		"Greater kudu are one of the signature sale species in the catalog. Bulls carry long spiral horns while cows and young animals move in looser groups through thicker bush, usually browsing on leaves and pods rather than open grass.",
 		"Acacia ridge and mixed bushveld line",
 		"Early morning near shaded browsing paths",
+		18500,
+		False,
+		"Standard ranch approval applies. Confirm the latest provincial hunting paperwork before the hunt date.",
+		"Sunrise bushveld game drives and spoor tracking through the acacia ridges.",
 		_asset_or_placeholder("greater-kudu.jpg", "Greater Kudu", "#7f5d3d", "#cf9b5a"),
 		(
 			"Look for the white body stripes and the dark ridge running along the spine.",
@@ -90,6 +112,10 @@ RANCH_ANIMALS = (
 		"Springbok are among the most recognisable South African antelope. They are usually seen out in the open, grazing in loose groups and suddenly springing into the air when startled.",
 		"Open grass flats and short-grazing camps",
 		"Late afternoon across the sunlit plains",
+		7500,
+		False,
+		"Standard ranch approval applies. Check any district-specific requirements before confirming the booking.",
+		"Open-plain game drives with afternoon herd viewing and photography stops.",
 		_asset_or_placeholder("springbok.jpg", "Springbok", "#8c5e34", "#d8b06a"),
 		(
 			"Watch for the chestnut stripe along each side of the body.",
@@ -106,6 +132,10 @@ RANCH_ANIMALS = (
 		"Cape giraffe are among the easiest animals to spot in the catalog because they rise above the thorn trees. Their pale patches and long silhouette make them one of the most recognisable listed species.",
 		"Tall acacia belt on the northern loop",
 		"Early afternoon where tree canopies stay green",
+		38000,
+		False,
+		"Standard ranch approval applies. Confirm any local transport or handling requirements when finalising the hunt.",
+		"Canopy-height browsing drives with long-range viewing on the northern loop.",
 		_asset_or_placeholder("cape-giraffe.jpg", "Cape Giraffe", "#a56f3a", "#e1bc73"),
 		(
 			"Notice the patch pattern and the dark tail tuft moving while they feed.",
@@ -122,6 +152,10 @@ RANCH_ANIMALS = (
 		"Buffalo add weight and presence to the sale catalog. They prefer thicker grasslands and water access, moving in compact groups that stay tightly aware of movement around them.",
 		"Waterline grass camps and dense grazing blocks",
 		"Morning around water access routes",
+		165000,
+		True,
+		"Permit required. Buffalo bookings should be confirmed with provincial dangerous-game approvals and ranch documentation in place.",
+		"Guided big-game drives to waterline camps during the early morning movement window.",
 		_asset_or_placeholder("buffalo.jpg", "Buffalo", "#5c4636", "#b38155"),
 		(
 			"The heavy horn boss gives mature animals a blocky forehead profile.",
@@ -138,6 +172,10 @@ RANCH_ANIMALS = (
 		"Rhino are treated as a premium listed species in the catalog. They are usually identified by their heavy shape, lowered head posture, and the very distinct horn profile visible even at distance.",
 		"Open browse edge and protected grass sections",
 		"Cool daylight hours near open clearings",
+		950000,
+		True,
+		"Permit required. Rhino hunts are subject to conservation approval, ranch compliance checks, and any applicable export controls.",
+		"Conservation-led drives with ranger-guided rhino tracking and controlled viewing distances.",
 		_asset_or_placeholder("rhino.jpg", "Rhino", "#67625d", "#b9a694"),
 		(
 			"The horn profile is the fastest visual cue, even in side silhouette.",
@@ -154,6 +192,10 @@ RANCH_ANIMALS = (
 		"Plains zebra bring strong movement and contrast to the catalog. Their stripe pattern is unique to each animal, but the herd behaviour is just as helpful when identifying them.",
 		"Central grazing paddocks and waterline paths",
 		"Mid-morning around open water points",
+		16500,
+		False,
+		"Standard ranch approval applies. Confirm the latest district hunting conditions before arrival.",
+		"Family-friendly plains drives with herd photography along the central grazing paddocks.",
 		_asset_or_placeholder("plains-zebra.jpg", "Plains Zebra", "#6d5d52", "#ddd3c8"),
 		(
 			"Each zebra has its own stripe pattern even though the herd appears uniform from a distance.",
@@ -170,6 +212,10 @@ RANCH_ANIMALS = (
 		"Ostriches bring a very different silhouette to the sale catalog. Their height, bare legs, and long neck make them easy to identify even from a distance.",
 		"Dry grass camps and open fence lines",
 		"Warm daylight hours on open ground",
+		12000,
+		False,
+		"Standard ranch approval applies. Check any bird-specific handling or transport paperwork ahead of time.",
+		"Open-ground drives with birdlife stops and fast-moving sightings in the dry camps.",
 		_asset_or_placeholder("common-ostrich.jpg", "Common Ostrich", "#8b6640", "#ceb087"),
 		(
 			"The long neck and powerful legs are visible even from far away.",
@@ -186,6 +232,10 @@ RANCH_ANIMALS = (
 		"Elephants are one of the clearest large-animal listings in the catalog. Their trunk, ear shape, and very high body mass make them straightforward to separate from every other sold species.",
 		"Riverine browse and dense shade corridors",
 		"Morning or late afternoon near water and trees",
+		420000,
+		True,
+		"Permit required. Elephant hunts should only proceed once provincial authorisation and trophy documentation are approved.",
+		"Riverine game drives with waterhole viewing in cooler morning and late-afternoon slots.",
 		_asset_or_placeholder("elephant.jpg", "Elephant", "#72675b", "#c1ad93"),
 		(
 			"The trunk remains the strongest recognition cue from almost any angle.",
@@ -202,6 +252,10 @@ RANCH_ANIMALS = (
 		"Lions replace blue wildebeest in the sale catalog and bring a very different visual profile to the site. Their muscular frame, forward-facing gaze, and, in males, a full mane make them one of the easiest listed species to separate from the hoofed animals on the ranch pages.",
 		"Protected predator camps and open bushveld edges",
 		"Cool mornings and late afternoons near shade lines",
+		280000,
+		True,
+		"Permit required. Lion hunts require predator permitting, ranch compliance, and confirmation of the applicable provincial rules.",
+		"Predator-focused drives in protected camps with guide-led viewing from secure vehicles.",
 		_asset_or_placeholder("lion.jpg", "Lion", "#8a6138", "#d0a267"),
 		(
 			"The broad muzzle and cat-like posture stand apart from every grazing species in the catalog.",
@@ -218,6 +272,10 @@ RANCH_ANIMALS = (
 		"Hippopotamus are handled as a waterline listing in the catalog. They are recognised by their barrel shape, low profile in water, and a very broad head with a square muzzle.",
 		"Dam edges, river bends, and still water access points",
 		"Late afternoon near calm water",
+		145000,
+		True,
+		"Permit required. Hippopotamus hunts should be cleared against the latest provincial waterway and dangerous-game requirements.",
+		"Late-afternoon dam-edge drives for waterline sightings and sunset photography.",
 		_asset_or_placeholder("hippo.jpg", "Hippopotamus", "#60524b", "#a4897f"),
 		(
 			"The broad square muzzle is more diagnostic than body colour.",

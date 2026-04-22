@@ -48,6 +48,16 @@ def meta_item(label: str, value: str) -> html.Div:
 	)
 
 
+def animal_info_row(label: str, value: str) -> html.Div:
+	return html.Div(
+		className="animal-info-row",
+		children=[
+			html.Span(label, className="animal-info-label"),
+			html.Span(value, className="animal-info-value"),
+		],
+	)
+
+
 def detail_card(label: str, value: str) -> html.Div:
 	return html.Div(
 		className="detail-card",
@@ -109,6 +119,14 @@ def animal_card(animal) -> html.Article:
 					html.H3(animal.name),
 					html.P(animal.scientific_name, className="animal-scientific"),
 					html.P(animal.short_description, className="animal-copy"),
+					html.Div(
+						className="animal-info-stack",
+						children=[
+							animal_info_row("Guide price", animal.price_display),
+							animal_info_row("Permit", animal.permit_status),
+							animal_info_row("Safari / Game Drive", animal.safari_drive_opportunity),
+						],
+					),
 					dcc.Link("View animal map", href=animal.page_href, className="animal-link"),
 				],
 			),
@@ -133,7 +151,7 @@ def create_catalog_page(animals) -> html.Div:
 					),
 					html.H1("Browse the full animal catalog"),
 					html.P(
-						"Select an animal to open its map page. Each animal page is now focused on the South Africa map and the stored ranch markers for that species.",
+						"Select an animal to open its map page. Guide rates are shown in South African Rand, permit guidance is surfaced per species, and every card now includes a safari or game-drive viewing option.",
 						className="hero-copy",
 					),
 					html.Div(
@@ -486,6 +504,50 @@ def create_animal_page(
 			],
 		)
 
+	animal_overview = html.Div(
+		className="animal-page-content",
+		children=[
+			html.Div(
+				className="store-detail-grid",
+				children=[
+					detail_card("Guide price", animal.price_display),
+					detail_card("Permit", animal.permit_status),
+					detail_card("Best viewing", animal.best_viewing),
+					detail_card("Habitat zone", animal.habitat_zone),
+				],
+			),
+			html.P(animal.description, className="animal-detail-copy"),
+			html.Div(
+				className="animal-feature-block",
+				children=[
+					html.H3("Safari / game drive opportunity", className="detail-heading"),
+					html.P(animal.safari_drive_opportunity, className="animal-detail-copy"),
+				],
+			),
+			html.Div(
+				className="animal-feature-block",
+				children=[
+					html.H3("Permit guidance", className="detail-heading"),
+					html.P(animal.permit_guidance, className="animal-detail-copy"),
+				],
+			),
+			html.Div(
+				className="animal-feature-block",
+				children=[
+					html.H3("Field notes", className="detail-heading"),
+					html.Ul(
+						className="traits-list",
+						children=[html.Li(trait) for trait in animal.traits],
+					),
+				],
+			),
+			html.Div(
+				className="note",
+			children="All guide rates are shown in South African Rand. Permit guidance is informational and should be confirmed against the latest provincial regulations before booking.",
+			),
+		],
+	)
+
 	return html.Div(
 		className="page",
 		children=[
@@ -505,6 +567,7 @@ def create_animal_page(
 						map_copy,
 						className="hero-copy",
 					),
+					animal_overview,
 					static_map_media(
 						image_src=location_map_image_src,
 						alt_text=f"Location map for {animal.name}",

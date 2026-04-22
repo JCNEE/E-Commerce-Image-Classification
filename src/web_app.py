@@ -49,7 +49,6 @@ from src.model_runtime import (  # noqa: E402
 	predict_with_runtime,
 )
 
-USE_TRAINED_MODEL = os.getenv("USE_TRAINED_MODEL", "true").lower() == "true"
 SUPPORTED_IMAGE_TYPES = {
 	"image/jpeg": "JPG",
 	"image/png": "PNG",
@@ -159,7 +158,10 @@ def build_sold_prediction(
 		mode_label=mode_label,
 		details=(
 			("Species", animal.scientific_name),
+			("Guide price", animal.price_display),
+			("Permit", animal.permit_status),
 			("Habitat zone", animal.habitat_zone),
+			("Game drive", animal.safari_drive_opportunity),
 			("Catalog status", "Sold"),
 		),
 		note=note,
@@ -258,10 +260,10 @@ def run_demo_prediction(
 	detected_species = infer_outside_species_name(file_name)
 	reasons = [
 		f"Detected file type: {SUPPORTED_IMAGE_TYPES[mime_type]}.",
-		"The temporary site is using deterministic filename matching because the live model runtime is disabled or unavailable.",
+		"The site is using deterministic filename matching because the LiteRT runtime is unavailable.",
 	]
 	if runtime_note:
-		reasons.append(f"Trained runtime unavailable: {runtime_note}")
+		reasons.append(f"LiteRT runtime unavailable: {runtime_note}")
 
 	if matched_animal is not None:
 		reasons.append("The upload name matched one of the exact sold-animal aliases configured for this project.")
@@ -271,7 +273,7 @@ def run_demo_prediction(
 			mode_label=mode_label,
 			reasons=reasons,
 			note=(
-				"This is deterministic fallback logic for the temporary site. Enable the runtime backend if you want the upload itself, rather than the file name, to drive the result."
+				"This is deterministic fallback logic used only when the LiteRT runtime cannot load or classify the upload."
 			),
 		)
 
@@ -292,22 +294,15 @@ def run_demo_prediction(
 
 
 def classify_upload(file_name: str, mime_type: str, image_bytes: bytes) -> PredictionResult:
-	if USE_TRAINED_MODEL:
-		try:
-			return run_model_prediction(image_bytes=image_bytes, file_name=file_name)
-		except ModelRuntimeUnavailable as exc:
-			return run_demo_prediction(
-				file_name=file_name,
-				mime_type=mime_type,
-				mode_label="Demo fallback",
-				runtime_note=str(exc),
-			)
-
-	return run_demo_prediction(
-		file_name=file_name,
-		mime_type=mime_type,
-		mode_label="Deterministic temp match",
-	)
+	try:
+		return run_model_prediction(image_bytes=image_bytes, file_name=file_name)
+	except ModelRuntimeUnavailable as exc:
+		return run_demo_prediction(
+			file_name=file_name,
+			mime_type=mime_type,
+			mode_label="Filename fallback",
+			runtime_note=str(exc),
+		)
 
 
 app.layout = create_layout()
