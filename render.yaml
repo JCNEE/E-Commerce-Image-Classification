@@ -3,7 +3,7 @@ services:
     name: e-commerce-image-classification
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-render.txt
     startCommand: gunicorn src.web_app:server --workers 1 --threads 2 --timeout 180
     autoDeploy: true
     envVars:
@@ -12,4 +12,4 @@ services:
       - key: USE_TRAINED_MODEL
         value: "true"
       - key: MODEL_BACKEND
-        value: mobilenet_v2
+        value: mobilenet_v2_tflite

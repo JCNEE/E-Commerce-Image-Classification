@@ -5,12 +5,15 @@ import os
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
+from io import BytesIO
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_PATH = PROJECT_ROOT / "artifacts"
 BEST_MODEL_INFO_PATH = ARTIFACTS_PATH / "best_fine_tuned_model.json"
+IMAGENET_CLASS_INDEX_PATH = ARTIFACTS_PATH / "imagenet_class_index.json"
+MOBILENET_V2_TFLITE_PATH = ARTIFACTS_PATH / "mobilenet_v2_imagenet.tflite"
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -28,6 +31,13 @@ MODEL_BACKEND_ALIASES = {
 	"mobilenetv2": "mobilenet_v2",
 	"mobilenet_v2": "mobilenet_v2",
 	"mobilenet-v2": "mobilenet_v2",
+	"mobilenet_v2_tflite": "mobilenet_v2_tflite",
+	"mobilenet-v2-tflite": "mobilenet_v2_tflite",
+	"mobilenet_tflite": "mobilenet_v2_tflite",
+	"mobilenet-litert": "mobilenet_v2_tflite",
+	"mobilenet_litert": "mobilenet_v2_tflite",
+	"mobilenet_v2_litert": "mobilenet_v2_tflite",
+	"mobilenet-v2-litert": "mobilenet_v2_tflite",
 	"mobilenetv3": "mobilenet_v3_small",
 	"mobilenet_v3": "mobilenet_v3_small",
 	"mobilenet-v3": "mobilenet_v3_small",
@@ -148,6 +158,16 @@ class BackendResources:
 
 
 @dataclass(frozen=True)
+class LiteRTResources:
+	display_name: str
+	target_size: tuple[int, int]
+	interpreter: object
+	input_details: dict[str, object]
+	output_details: dict[str, object]
+	class_index: dict[int, tuple[str, str]]
+
+
+@dataclass(frozen=True)
 class ProjectModelMetadata:
 	best_model: str
 	class_names: tuple[str, ...]
@@ -223,6 +243,181 @@ def discover_project_model_path(best_model: str) -> Path | None:
 		if candidate.exists():
 			return candidate
 	return None
+
+
+def _load_litert_interpreter_class():
+	try:
+		from ai_edge_litert.interpreter import Interpreter  # noqa: PLC0415
+
+		return Interpreter
+	except Exception:
+		pass
+
+	try:
+		from tflite_runtime.interpreter import Interpreter  # noqa: PLC0415
+
+		return Interpreter
+	except Exception:
+		pass
+
+	try:
+		import tensorflow as tf  # noqa: PLC0415
+	except Exception as exc:
+		raise ModelRuntimeUnavailable(
+			"LiteRT is not installed in the current environment, so the TensorFlow Lite backend cannot be loaded."
+		) from exc
+
+	return tf.lite.Interpreter
+
+
+def _load_litert_interpreter(model_path: Path) -> tuple[object, dict[str, object], dict[str, object]]:
+	if not model_path.exists():
+		raise ModelRuntimeUnavailable(
+			f"The LiteRT model file {model_path.name} was not found in artifacts/. Export or commit the .tflite asset first."
+		)
+
+	interpreter_class = _load_litert_interpreter_class()
+
+	try:
+		interpreter = interpreter_class(model_path=str(model_path))
+		interpreter.allocate_tensors()
+		input_details = interpreter.get_input_details()[0]
+		output_details = interpreter.get_output_details()[0]
+	except Exception as exc:
+		raise ModelRuntimeUnavailable(
+			f"The LiteRT model file at {model_path.name} could not be loaded by the interpreter."
+		) from exc
+
+	return interpreter, input_details, output_details
+
+
+def _normalise_quantization(details: dict[str, object]) -> tuple[float, int]:
+	quantization = details.get("quantization")
+	if isinstance(quantization, tuple) and len(quantization) == 2:
+		scale = float(quantization[0] or 0.0)
+		zero_point = int(quantization[1] or 0)
+		return scale, zero_point
+	return 0.0, 0
+
+
+def _prepare_image_array(image_bytes: bytes, target_size: tuple[int, int]):
+	import numpy as np  # noqa: PLC0415
+	from PIL import Image  # noqa: PLC0415
+
+	resampling = getattr(Image, "Resampling", Image).BILINEAR
+	with Image.open(BytesIO(image_bytes)) as image:
+		resized_image = image.convert("RGB").resize((target_size[1], target_size[0]), resample=resampling)
+		image_array = np.asarray(resized_image, dtype=np.float32)
+
+	return np.expand_dims(image_array, axis=0)
+
+
+def _prepare_mobilenet_v2_tflite_batch(image_bytes: bytes, target_size: tuple[int, int]):
+	image_batch = _prepare_image_array(image_bytes, target_size)
+	return (image_batch / 127.5) - 1.0
+
+
+def _set_litert_input_tensor(interpreter: object, input_details: dict[str, object], image_batch) -> None:
+	import numpy as np  # noqa: PLC0415
+
+	tensor_dtype = input_details["dtype"]
+	prepared_batch = np.asarray(image_batch, dtype=np.float32)
+
+	if tensor_dtype is np.float32:
+		interpreter.set_tensor(input_details["index"], prepared_batch.astype(np.float32))
+		return
+
+	scale, zero_point = _normalise_quantization(input_details)
+	if not scale:
+		raise ModelRuntimeUnavailable(
+			"The LiteRT backend input tensor is quantized, but the model does not expose valid quantization metadata."
+		)
+
+	quantized_batch = np.round(prepared_batch / scale + zero_point)
+	if np.issubdtype(tensor_dtype, np.integer):
+		limits = np.iinfo(tensor_dtype)
+		quantized_batch = np.clip(quantized_batch, limits.min, limits.max)
+
+	interpreter.set_tensor(input_details["index"], quantized_batch.astype(tensor_dtype))
+
+
+def _get_litert_output_tensor(interpreter: object, output_details: dict[str, object]):
+	import numpy as np  # noqa: PLC0415
+
+	output_tensor = interpreter.get_tensor(output_details["index"])
+	tensor_dtype = output_details["dtype"]
+	if tensor_dtype is np.float32:
+		return output_tensor.astype(np.float32)
+
+	scale, zero_point = _normalise_quantization(output_details)
+	if not scale:
+		return output_tensor.astype(np.float32)
+
+	return scale * (output_tensor.astype(np.float32) - zero_point)
+
+
+@lru_cache(maxsize=1)
+def _load_imagenet_class_index() -> dict[int, tuple[str, str]]:
+	if not IMAGENET_CLASS_INDEX_PATH.exists():
+		raise ModelRuntimeUnavailable(
+			"The ImageNet class index artifact is missing. Export artifacts/imagenet_class_index.json before using the LiteRT backend."
+		)
+
+	try:
+		with IMAGENET_CLASS_INDEX_PATH.open("r", encoding="utf-8") as class_index_file:
+			payload = json.load(class_index_file)
+	except (OSError, json.JSONDecodeError) as exc:
+		raise ModelRuntimeUnavailable("The ImageNet class index artifact could not be read by the LiteRT backend.") from exc
+
+	class_index: dict[int, tuple[str, str]] = {}
+	for index, raw_entry in payload.items():
+		if not isinstance(raw_entry, list | tuple) or len(raw_entry) != 2:
+			continue
+		class_index[int(index)] = (str(raw_entry[0]), str(raw_entry[1]))
+
+	if not class_index:
+		raise ModelRuntimeUnavailable("The ImageNet class index artifact is empty or invalid.")
+
+	return class_index
+
+
+@lru_cache(maxsize=1)
+def load_mobilenet_v2_tflite_resources() -> LiteRTResources:
+	interpreter, input_details, output_details = _load_litert_interpreter(MOBILENET_V2_TFLITE_PATH)
+	return LiteRTResources(
+		display_name="MobileNetV2 LiteRT runtime",
+		target_size=(224, 224),
+		interpreter=interpreter,
+		input_details=input_details,
+		output_details=output_details,
+		class_index=_load_imagenet_class_index(),
+	)
+
+
+def _decode_mobilenet_v2_tflite_predictions(image_bytes: bytes) -> tuple[str, list[tuple[str, str, float]]]:
+	import numpy as np  # noqa: PLC0415
+
+	resources = load_mobilenet_v2_tflite_resources()
+	image_batch = _prepare_mobilenet_v2_tflite_batch(image_bytes, resources.target_size)
+	_set_litert_input_tensor(resources.interpreter, resources.input_details, image_batch)
+
+	try:
+		resources.interpreter.invoke()
+	except Exception as exc:
+		raise ModelRuntimeUnavailable("The image could not be processed by the MobileNetV2 LiteRT runtime.") from exc
+
+	output_tensor = _get_litert_output_tensor(resources.interpreter, resources.output_details)
+	if output_tensor.ndim != 2 or output_tensor.shape[0] != 1:
+		raise ModelRuntimeUnavailable("The LiteRT backend returned an unexpected output tensor shape.")
+
+	class_scores = output_tensor[0]
+	top_indices = np.argsort(class_scores)[-5:][::-1]
+	decoded_predictions: list[tuple[str, str, float]] = []
+	for index in top_indices:
+		class_id, label = resources.class_index.get(int(index), (str(index), f"class-{index}"))
+		decoded_predictions.append((class_id, label, float(class_scores[index])))
+
+	return resources.display_name, decoded_predictions
 
 
 @lru_cache(maxsize=1)
@@ -504,7 +699,7 @@ def load_imagenet_backend_resources() -> BackendResources:
 		) from exc
 
 	raise ModelRuntimeUnavailable(
-		"Unsupported MODEL_BACKEND. Use mobilenet, mobilenet_v2, mobilenet_v3_small, project_model, efficientnet_b0, or resnet50."
+		"Unsupported MODEL_BACKEND. Use mobilenet, mobilenet_v2, mobilenet_v2_tflite, mobilenet_v3_small, project_model, efficientnet_b0, or resnet50."
 	)
 
 
@@ -517,18 +712,22 @@ def _prepare_imagenet_image_tensor(image_bytes: bytes, target_size: tuple[int, i
 	return tf.expand_dims(image_tensor, axis=0)
 
 
-def _decode_imagenet_predictions(image_bytes: bytes) -> tuple[BackendResources, list[tuple[str, str, float]]]:
+
+def _decode_imagenet_predictions(image_bytes: bytes) -> tuple[str, list[tuple[str, str, float]]]:
+	if MODEL_BACKEND == "mobilenet_v2_tflite":
+		return _decode_mobilenet_v2_tflite_predictions(image_bytes)
+
 	resources = load_imagenet_backend_resources()
 	image_batch = _prepare_imagenet_image_tensor(image_bytes, resources.target_size)
 	processed_batch = resources.preprocess_input(image_batch)
 	predictions = resources.model.predict(processed_batch, verbose=0)
 	decoded_predictions = resources.decode_predictions(predictions, top=5)[0]
-	return resources, [(class_id, label, float(score)) for class_id, label, score in decoded_predictions]
+	return resources.display_name, [(class_id, label, float(score)) for class_id, label, score in decoded_predictions]
 
 
 def _predict_with_imagenet_backend(image_bytes: bytes, file_name: str | None = None) -> RuntimePrediction:
 	try:
-		resources, decoded_predictions = _decode_imagenet_predictions(image_bytes)
+		display_name, decoded_predictions = _decode_imagenet_predictions(image_bytes)
 	except ModelRuntimeUnavailable:
 		raise
 	except Exception as exc:
@@ -540,7 +739,7 @@ def _predict_with_imagenet_backend(image_bytes: bytes, file_name: str | None = N
 	top_class_id, top_label, top_score = decoded_predictions[0]
 	top_display_label = format_species_label(top_label) or top_label
 	reasons = [
-		f"Prediction backend: {resources.display_name}.",
+		f"Prediction backend: {display_name}.",
 		f"Top label: {top_display_label} ({top_score:.0%}).",
 	]
 
@@ -555,7 +754,7 @@ def _predict_with_imagenet_backend(image_bytes: bytes, file_name: str | None = N
 		return RuntimePrediction(
 			animal_id=animal_id,
 			confidence=max(0.52, top_score),
-			mode_label=resources.display_name,
+			mode_label=display_name,
 			note=(
 				"This runtime uses a generic ImageNet backbone plus a strict sold-animal label map. "
 				"Use the project_model backend if you want the app to follow train_models.py artifacts directly."
@@ -587,7 +786,7 @@ def _predict_with_imagenet_backend(image_bytes: bytes, file_name: str | None = N
 	return RuntimePrediction(
 		animal_id=None,
 		confidence=max(0.51, top_score),
-		mode_label=resources.display_name,
+		mode_label=display_name,
 		note=(
 			"Anything outside the configured kudu, springbok, giraffe, buffalo, rhino, zebra, ostrich, elephant, lion, and hippopotamus list is routed to not sold."
 		),

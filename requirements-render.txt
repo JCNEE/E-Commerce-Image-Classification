@@ -1,4 +1,7 @@
-# Lightweight Render runtime dependencies for free-tier deployment.
+# Render deployment dependencies using LiteRT instead of full TensorFlow.
+ai-edge-litert==2.1.4
 dash==4.1.0
 gunicorn==25.3.0
+numpy==2.4.4
+pillow==12.2.0
 plotly==6.7.0
