@@ -389,14 +389,11 @@ def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = Non
 		)
 
 	detected_species = infer_outside_species_name(file_name) or infer_outside_species_name(top_label) or top_display_label
-	reasons.append("The top LiteRT label did not map to any configured sold-animal class, so the upload is treated as not sold.")
 	return RuntimePrediction(
 		animal_id=None,
 		confidence=max(0.51, top_score),
 		mode_label=display_name,
-		note=(
-			"Anything outside the configured kudu, springbok, giraffe, buffalo, rhino, zebra, ostrich, elephant, lion, and hippopotamus list is routed to not sold."
-		),
+		note="",
 		reasons=tuple(reasons),
 		top_candidates=top_candidates,
 		catalog_breakdown=catalog_breakdown,

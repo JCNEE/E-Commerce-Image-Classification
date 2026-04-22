@@ -47,10 +47,9 @@ pip-wheel-metadata/
 
 mlruns/
 wandb/
-*.joblib
 *.sav
 *.onnx
-*.h5
+
 
 # Editor and OS files
 .vscode/

@@ -252,7 +252,6 @@ def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult
 				catalog_breakdown=runtime_prediction.catalog_breakdown,
 			)
 
-	reasons.append("The runtime output did not resolve to a configured catalog entry, so the upload was routed to not sold.")
 	return build_not_sold_prediction(
 		detected_species=runtime_prediction.detected_species,
 		confidence=runtime_prediction.confidence,
