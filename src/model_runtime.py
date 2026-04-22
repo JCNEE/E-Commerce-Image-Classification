@@ -82,6 +82,8 @@ class RuntimePrediction:
 	mode_label: str
 	note: str
 	reasons: tuple[str, ...]
+	top_candidates: tuple[tuple[str, float], ...] = ()
+	catalog_breakdown: tuple[tuple[str, float], ...] = ()
 	raw_label: str | None = None
 	detected_species: str | None = None
 
@@ -304,6 +306,33 @@ def _decode_mobilenet_v2_tflite_predictions(image_bytes: bytes) -> tuple[str, li
 	return resources.display_name, decoded_predictions
 
 
+def _build_top_candidate_summary(decoded_predictions: list[tuple[str, str, float]]) -> tuple[tuple[str, float], ...]:
+	top_candidates: list[tuple[str, float]] = []
+	for _, label, score in decoded_predictions:
+		display_label = format_species_label(label) or str(label)
+		top_candidates.append((display_label, max(0.0, float(score))))
+	return tuple(top_candidates)
+
+
+def _build_catalog_breakdown(decoded_predictions: list[tuple[str, str, float]]) -> tuple[tuple[str, float], ...]:
+	sold_score = 0.0
+	outside_score = 0.0
+	for _, label, score in decoded_predictions:
+		if resolve_sold_model_label(label):
+			sold_score += max(0.0, float(score))
+		else:
+			outside_score += max(0.0, float(score))
+
+	breakdown: list[tuple[str, float]] = []
+	if sold_score > 0:
+		breakdown.append(("Sold catalog cues", sold_score))
+	if outside_score > 0:
+		breakdown.append(("Outside catalog cues", outside_score))
+	if not breakdown:
+		breakdown.append(("Unresolved cues", 1.0))
+	return tuple(breakdown)
+
+
 def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = None) -> RuntimePrediction:
 	try:
 		display_name, decoded_predictions = _decode_mobilenet_v2_tflite_predictions(image_bytes)
@@ -315,6 +344,8 @@ def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = Non
 	if not decoded_predictions:
 		raise ModelRuntimeUnavailable("The TFLite website runtime returned no predictions.")
 
+	top_candidates = _build_top_candidate_summary(decoded_predictions)
+	catalog_breakdown = _build_catalog_breakdown(decoded_predictions)
 	top_class_id, top_label, top_score = decoded_predictions[0]
 	top_display_label = format_species_label(top_label) or top_label
 	reasons = [
@@ -326,15 +357,14 @@ def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = Non
 	if resolved_sold_label:
 		animal_id = MODEL_LABEL_TO_CATALOG_ID[resolved_sold_label]
 		animal = get_ranch_animal(animal_id)
-		reasons.append("The top LiteRT label maps directly to one of the configured sold-animal classes.")
 		return RuntimePrediction(
 			animal_id=animal_id,
 			confidence=max(0.52, top_score),
 			mode_label=display_name,
-			note=(
-				"This result came from the exported MobileNetV2 LiteRT runtime and its strict sold-animal label map."
-			),
+			note="",
 			reasons=tuple(reasons),
+			top_candidates=top_candidates,
+			catalog_breakdown=catalog_breakdown,
 			raw_label=top_class_id,
 			detected_species=animal.name if animal is not None else top_display_label,
 		)
@@ -352,6 +382,8 @@ def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = Non
 				"The LiteRT output did not resolve cleanly to one of the sold classes, so the site fell back to the upload name."
 			),
 			reasons=tuple(reasons),
+			top_candidates=top_candidates,
+			catalog_breakdown=catalog_breakdown,
 			raw_label=top_class_id,
 			detected_species=file_name_match.name,
 		)
@@ -366,6 +398,8 @@ def _predict_with_tflite_runtime(image_bytes: bytes, file_name: str | None = Non
 			"Anything outside the configured kudu, springbok, giraffe, buffalo, rhino, zebra, ostrich, elephant, lion, and hippopotamus list is routed to not sold."
 		),
 		reasons=tuple(reasons),
+		top_candidates=top_candidates,
+		catalog_breakdown=catalog_breakdown,
 		raw_label=top_class_id,
 		detected_species=detected_species,
 	)

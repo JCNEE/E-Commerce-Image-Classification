@@ -601,6 +601,54 @@ a {
 	box-shadow: var(--shadow-card);
 }
 
+.classification-graph-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 20px;
+}
+
+.classification-graph-card {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 20px;
+	border: 1px solid rgba(90, 58, 32, 0.12);
+	border-radius: var(--radius-lg);
+	background:
+		linear-gradient(180deg, rgba(255, 249, 241, 0.98), rgba(244, 235, 220, 0.92)),
+		rgba(255, 251, 247, 0.95);
+	box-shadow: var(--shadow-card);
+}
+
+.graph-title {
+	margin: 0;
+	font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+	font-size: 1.3rem;
+	line-height: 1.1;
+	color: var(--ink);
+}
+
+.graph-copy {
+	margin: 0;
+	font-size: 0.98rem;
+	line-height: 1.65;
+	color: var(--muted);
+}
+
+.classification-graph-shell {
+	overflow: hidden;
+	border: 1px solid rgba(90, 58, 32, 0.1);
+	border-radius: var(--radius-md);
+	background: rgba(255, 251, 247, 0.82);
+	padding: 8px 8px 0;
+}
+
+.classification-graph,
+.classification-graph .js-plotly-plot,
+.classification-graph .plot-container {
+	width: 100%;
+}
+
 .range-header {
 	display: flex;
 	flex-direction: column;
@@ -787,6 +835,7 @@ a {
 	.feedback-grid,
 	.hero-metrics,
 	.meta-grid,
+	.classification-graph-grid,
 	.store-detail-grid,
 	.animal-grid,
 	.animal-page-grid,

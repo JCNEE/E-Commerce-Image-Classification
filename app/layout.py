@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import urlencode
 
 from dash import dcc, html
+import plotly.graph_objects as go
 
 
 def build_upload_component(upload_key: str | None = None) -> html.Div:
@@ -330,10 +331,155 @@ def range_map_card(prediction) -> html.Div | None:
 	)
 
 
+def build_top_candidates_figure(prediction):
+	labels = [label for label, _ in prediction.top_candidates]
+	values = [score for _, score in prediction.top_candidates]
+	if not labels or not values:
+		return None
+
+	axis_max = max(0.18, min(1.0, max(values) * 1.15))
+	bar_colors = ["#a86d32"] + ["rgba(168, 109, 50, 0.58)"] * max(0, len(values) - 1)
+	figure = go.Figure(
+		go.Bar(
+			x=list(reversed(values)),
+			y=list(reversed(labels)),
+			orientation="h",
+			marker={
+				"color": list(reversed(bar_colors)),
+				"line": {"color": "rgba(90, 56, 29, 0.18)", "width": 1.2},
+			},
+			hovertemplate="%{y}: %{x:.1%}<extra></extra>",
+		)
+	)
+	figure.update_layout(
+		paper_bgcolor="rgba(0,0,0,0)",
+		plot_bgcolor="rgba(0,0,0,0)",
+		margin={"l": 0, "r": 12, "t": 8, "b": 0},
+		height=280,
+		xaxis={
+			"title": None,
+			"range": [0, axis_max],
+			"tickformat": ".0%",
+			"gridcolor": "rgba(90, 56, 29, 0.10)",
+			"zeroline": False,
+		},
+		yaxis={"title": None, "tickfont": {"size": 12}, "automargin": True},
+		font={"family": '"Trebuchet MS", "Gill Sans", sans-serif', "color": "#685446"},
+	)
+	return figure
+
+
+def build_catalog_breakdown_figure(prediction):
+	labels = [label for label, _ in prediction.catalog_breakdown]
+	values = [score for _, score in prediction.catalog_breakdown]
+	if not labels or not values:
+		return None
+
+	color_map = {
+		"Sold catalog cues": "#2f6d4d",
+		"Outside catalog cues": "#9b4d2c",
+		"Unresolved cues": "#76695e",
+	}
+	figure = go.Figure(
+		go.Pie(
+			labels=labels,
+			values=values,
+			hole=0.64,
+			sort=False,
+			marker={
+				"colors": [color_map.get(label, "#76695e") for label in labels],
+				"line": {"color": "rgba(255, 251, 243, 0.95)", "width": 2},
+			},
+			textinfo="percent",
+			hovertemplate="%{label}: %{value:.1%}<extra></extra>",
+		)
+	)
+	figure.update_layout(
+		paper_bgcolor="rgba(0,0,0,0)",
+		plot_bgcolor="rgba(0,0,0,0)",
+		margin={"l": 0, "r": 0, "t": 8, "b": 0},
+		height=280,
+		showlegend=True,
+		legend={"orientation": "h", "x": 0, "y": -0.08},
+		annotations=[
+			{
+				"text": prediction.badge_text,
+				"x": 0.5,
+				"y": 0.5,
+				"showarrow": False,
+				"font": {"family": '"Palatino Linotype", "Book Antiqua", Georgia, serif', "size": 18, "color": "#241711"},
+			}
+		],
+		font={"family": '"Trebuchet MS", "Gill Sans", sans-serif', "color": "#685446"},
+	)
+	return figure
+
+
+def static_plotly_graph(figure) -> dcc.Graph:
+	return dcc.Graph(
+		figure=figure,
+		config={
+			"displayModeBar": False,
+			"staticPlot": True,
+			"responsive": True,
+		},
+		className="classification-graph",
+	)
+
+
+def classification_graphs(prediction) -> html.Div | None:
+	top_candidates_figure = build_top_candidates_figure(prediction)
+	catalog_breakdown_figure = build_catalog_breakdown_figure(prediction)
+	if top_candidates_figure is None and catalog_breakdown_figure is None:
+		return None
+
+	graph_cards: list[html.Component] = []
+	if top_candidates_figure is not None:
+		graph_cards.append(
+			html.Div(
+				className="classification-graph-card",
+				children=[
+					html.Span("Live model view", className="range-eyebrow"),
+					html.H3("Top model candidates", className="graph-title"),
+					html.P(
+						"These are the strongest labels returned by the current TFLite classification run for this upload.",
+						className="graph-copy",
+					),
+					html.Div(
+						className="classification-graph-shell",
+						children=[static_plotly_graph(top_candidates_figure)],
+					),
+				],
+			)
+		)
+
+	if catalog_breakdown_figure is not None:
+		graph_cards.append(
+			html.Div(
+				className="classification-graph-card",
+				children=[
+					html.Span("Catalog decision", className="range-eyebrow"),
+					html.H3("Sold vs outside cues", className="graph-title"),
+					html.P(
+						"This compares how much of the visible top-model evidence aligns with the sale catalog versus labels outside it.",
+						className="graph-copy",
+					),
+					html.Div(
+						className="classification-graph-shell",
+						children=[static_plotly_graph(catalog_breakdown_figure)],
+					),
+				],
+			)
+		)
+
+	return html.Div(className="classification-graph-grid", children=graph_cards)
+
+
 def result_card(prediction) -> html.Div:
 	confidence_width = f"{prediction.confidence * 100:.0f}%"
 	action_links: list[html.Component] = []
 	range_card = range_map_card(prediction)
+	graph_section = classification_graphs(prediction)
 	if prediction.action_href and prediction.action_label:
 		action_links.append(
 			dcc.Link(
@@ -354,6 +500,7 @@ def result_card(prediction) -> html.Div:
 	action_row = None
 	if action_links:
 		action_row = html.Div(className="action-row", children=action_links)
+	note_block = html.Div(className="note", children=prediction.note) if prediction.note else None
 
 	return html.Div(
 		className="result-shell",
@@ -399,13 +546,14 @@ def result_card(prediction) -> html.Div:
 				className="meta-grid",
 				children=[meta_item(label, value) for label, value in prediction.details],
 			),
+			graph_section,
 			range_card,
 			html.Ul(
 				className="reason-list",
 				children=[html.Li(reason) for reason in prediction.reasons],
 			),
 			action_row,
-			html.Div(className="note", children=prediction.note),
+			note_block,
 		],
 	)
 
@@ -448,14 +596,6 @@ def create_home_page() -> html.Div:
 						className="panel-copy",
 					),
 					html.Div(id="upload-shell", children=build_upload_component()),
-					html.Div(
-						className="helper-row",
-						children=[
-							html.Span("Upload-first experience", className="helper-chip"),
-							html.Span("Animal map after prediction", className="helper-chip"),
-							html.Span("Full catalog after upload", className="helper-chip"),
-						],
-					),
 				],
 			),
 			html.Div(id="result-panel"),
@@ -540,10 +680,6 @@ def create_animal_page(
 						children=[html.Li(trait) for trait in animal.traits],
 					),
 				],
-			),
-			html.Div(
-				className="note",
-			children="All guide rates are shown in South African Rand. Permit guidance is informational and should be confirmed against the latest provincial regulations before booking.",
 			),
 		],
 	)

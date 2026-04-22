@@ -249,7 +249,7 @@ RANCH_ANIMALS = (
 		"Panthera leo",
 		"Big cats",
 		"A powerful apex predator with a deep chest, broad head, and unmistakable cat silhouette.",
-		"Lions replace blue wildebeest in the sale catalog and bring a very different visual profile to the site. Their muscular frame, forward-facing gaze, and, in males, a full mane make them one of the easiest listed species to separate from the hoofed animals on the ranch pages.",
+		"Their muscular frame, forward-facing gaze, and, in males, a full mane make them one of the easiest listed species to separate from the hoofed animals on the ranch pages.",
 		"Protected predator camps and open bushveld edges",
 		"Cool mornings and late afternoons near shade lines",
 		280000,

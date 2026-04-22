@@ -68,6 +68,8 @@ class PredictionResult:
 	mode_label: str
 	details: tuple[tuple[str, str], ...]
 	note: str
+	top_candidates: tuple[tuple[str, float], ...] = ()
+	catalog_breakdown: tuple[tuple[str, float], ...] = ()
 	range_summary: str | None = None
 	range_provinces: tuple[str, ...] = ()
 	range_map_image_src: str | None = None
@@ -142,6 +144,8 @@ def build_sold_prediction(
 	mode_label: str,
 	reasons: list[str],
 	note: str,
+	top_candidates: tuple[tuple[str, float], ...] = (),
+	catalog_breakdown: tuple[tuple[str, float], ...] = (),
 ) -> PredictionResult:
 	range_summary, range_provinces, range_map_image_src = get_range_map_payload(animal.name)
 	return PredictionResult(
@@ -165,6 +169,8 @@ def build_sold_prediction(
 			("Catalog status", "Sold"),
 		),
 		note=note,
+		top_candidates=top_candidates,
+		catalog_breakdown=catalog_breakdown,
 		range_summary=range_summary,
 		range_provinces=range_provinces,
 		range_map_image_src=range_map_image_src,
@@ -181,6 +187,8 @@ def build_not_sold_prediction(
 	mode_label: str,
 	reasons: list[str],
 	note: str,
+	top_candidates: tuple[tuple[str, float], ...] = (),
+	catalog_breakdown: tuple[tuple[str, float], ...] = (),
 ) -> PredictionResult:
 	range_summary = None
 	range_provinces: tuple[str, ...] = ()
@@ -216,6 +224,8 @@ def build_not_sold_prediction(
 		mode_label=mode_label,
 		details=details,
 		note=note,
+		top_candidates=top_candidates,
+		catalog_breakdown=catalog_breakdown,
 		range_summary=range_summary,
 		range_provinces=range_provinces,
 		range_map_image_src=range_map_image_src,
@@ -238,6 +248,8 @@ def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult
 				mode_label=runtime_prediction.mode_label,
 				reasons=reasons,
 				note=runtime_prediction.note,
+				top_candidates=runtime_prediction.top_candidates,
+				catalog_breakdown=runtime_prediction.catalog_breakdown,
 			)
 
 	reasons.append("The runtime output did not resolve to a configured catalog entry, so the upload was routed to not sold.")
@@ -247,6 +259,8 @@ def run_model_prediction(image_bytes: bytes, file_name: str) -> PredictionResult
 		mode_label=runtime_prediction.mode_label,
 		reasons=reasons,
 		note=runtime_prediction.note,
+		top_candidates=runtime_prediction.top_candidates,
+		catalog_breakdown=runtime_prediction.catalog_breakdown,
 	)
 
 
